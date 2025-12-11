@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -27,6 +27,13 @@ class UserRead(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserShort(BaseModel):
+    id: int
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class DomainBase(BaseModel):
     code: str
     name: str
@@ -45,6 +52,14 @@ class DomainUpdate(BaseModel):
 
 class DomainRead(DomainBase):
     id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DomainShort(BaseModel):
+    id: int
+    code: str
+    name: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,6 +91,16 @@ class SourceRead(SourceBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SourceShort(BaseModel):
+    id: int
+    title: str
+    type: str
+    uri: str
+    is_active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CardBase(BaseModel):
     domain_id: int
     title: str
@@ -102,6 +127,45 @@ class CardRead(CardBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EventShort(BaseModel):
+    id: int
+    event_type: str
+    created_at: datetime
+    payload: Optional[str] = None
+    user: UserShort
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CardFeedItem(BaseModel):
+    id: int
+    title: str
+    status: str
+    domain: DomainShort
+    owner: UserShort
+    source_count: int
+    last_event_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CardFeedResponse(BaseModel):
+    items: List[CardFeedItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class CardFull(BaseModel):
+    card: CardRead
+    domain: DomainShort
+    owner: UserShort
+    sources: List[SourceShort]
+    events: List[EventShort]
 
 
 class ExpertBase(BaseModel):
