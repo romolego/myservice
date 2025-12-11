@@ -12,6 +12,7 @@ from .routers import (
     cards_router,
     experts_router,
     events_router,
+    chat_router,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -33,3 +34,4 @@ app.include_router(sources_router)
 app.include_router(cards_router)
 app.include_router(experts_router)
 app.include_router(events_router)
+app.include_router(chat_router)

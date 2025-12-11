@@ -213,3 +213,20 @@ class EventRead(EventBase):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ChatMockRequest(BaseModel):
+    message: str
+    card_id: Optional[int] = None
+
+
+class ChatUsedCard(BaseModel):
+    id: int
+    title: str
+    domain_name: Optional[str] = None
+    status: Optional[str] = None
+
+
+class ChatMockResponse(BaseModel):
+    answer: str
+    used_cards: List[ChatUsedCard]

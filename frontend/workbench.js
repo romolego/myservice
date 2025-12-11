@@ -296,10 +296,38 @@ function renderCard(data) {
   }
 }
 
-function addChatMessage(text, from = "bot") {
+function addChatMessage(text, from = "bot", usedCards = []) {
   const msg = document.createElement("div");
   msg.className = `message ${from}`;
-  msg.textContent = text;
+
+  const textEl = document.createElement("div");
+  textEl.className = "message-text";
+  textEl.textContent = text;
+  msg.appendChild(textEl);
+
+  if (usedCards && usedCards.length) {
+    const usedWrap = document.createElement("div");
+    usedWrap.className = "used-cards";
+    const label = document.createElement("span");
+    label.textContent = "Использованы карточки: ";
+    usedWrap.appendChild(label);
+
+    usedCards.forEach((card, idx) => {
+      const link = document.createElement("button");
+      link.type = "button";
+      link.className = "link-button";
+      link.textContent = card.title;
+      link.addEventListener("click", () => selectCard(card.id));
+      usedWrap.appendChild(link);
+      if (idx < usedCards.length - 1) {
+        const sep = document.createElement("span");
+        sep.textContent = ", ";
+        usedWrap.appendChild(sep);
+      }
+    });
+    msg.appendChild(usedWrap);
+  }
+
   elements.chatHistory.appendChild(msg);
   elements.chatHistory.scrollTop = elements.chatHistory.scrollHeight;
 }
@@ -312,12 +340,29 @@ elements.chatInput.addEventListener("keypress", (e) => {
   }
 });
 
-function handleChatSend() {
+async function handleChatSend() {
   const text = elements.chatInput.value.trim();
   if (!text) return;
   addChatMessage(text, "user");
   elements.chatInput.value = "";
-  setTimeout(() => addChatMessage("Ответ-заглушка, LLM пока не подключен."), 400);
+
+  try {
+    elements.chatSend.disabled = true;
+    const payload = { message: text, card_id: state.activeCardId || null };
+    const res = await fetch(`${API_BASE}/chat/mock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Ошибка обращения к псевдо-LLM");
+    const data = await res.json();
+    addChatMessage(data.answer, "bot", data.used_cards || []);
+  } catch (err) {
+    showNotification("Ошибка обращения к псевдо-LLM, попробуйте ещё раз");
+  } finally {
+    elements.chatSend.disabled = false;
+    elements.chatInput.focus();
+  }
 }
 
 elements.applyFilters.addEventListener("click", () => {
@@ -371,6 +416,10 @@ async function init() {
   fillDomainSelect(elements.domainFilter, domains);
   fillDomainSelect(elements.registryDomain, domains);
   await loadFeed();
+
+  if (window.location.hash === "#registry") {
+    switchTab("registry-view");
+  }
 }
 
 init();
