@@ -1,1 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MyService — Cards Prototype</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>ИИ-оркестр экспертизы</h1>
+      <div class="nav-tabs">
+        <button id="tab-chat" class="active" data-target="chat-view">Чат и карточка</button>
+        <button id="tab-registry" data-target="registry-view">Реестр карточек</button>
+      </div>
+    </header>
 
+    <main>
+      <section id="chat-view" class="layout">
+        <div class="panel" id="filters-panel">
+          <h2>Фильтры</h2>
+          <div class="filters">
+            <label>
+              Домен
+              <select id="domain-filter">
+                <option value="">Все домены</option>
+              </select>
+            </label>
+            <label>
+              Статус
+              <select id="status-filter">
+                <option value="">Все статусы</option>
+                <option value="draft">draft</option>
+                <option value="active">active</option>
+                <option value="archived">archived</option>
+              </select>
+            </label>
+            <label>
+              Поиск
+              <input id="search-filter" type="text" placeholder="заголовок или описание" />
+            </label>
+            <button id="apply-filters" class="primary">Обновить</button>
+          </div>
+
+          <div class="cards-list" id="cards-list"></div>
+
+          <div class="pagination">
+            <button id="page-prev">‹</button>
+            <span id="page-info">1</span>
+            <button id="page-next">›</button>
+          </div>
+        </div>
+
+        <div class="card-details">
+          <div class="panel" id="card-panel">
+            <h2 id="card-title">Карточка</h2>
+            <div class="detail-grid" id="card-meta">
+              <div>Домен: <span data-field="domain">—</span></div>
+              <div>Владелец: <span data-field="owner">—</span></div>
+              <div>Статус: <span data-field="status">—</span></div>
+              <div>Создано: <span data-field="created">—</span></div>
+              <div>Обновлено: <span data-field="updated">—</span></div>
+            </div>
+
+            <h3>Источники</h3>
+            <table class="sources-table" id="sources-table">
+              <thead>
+                <tr>
+                  <th>Название</th>
+                  <th>Тип</th>
+                  <th>Ссылка</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+
+            <div id="events-block">
+              <h3>События</h3>
+              <div id="events-list"></div>
+            </div>
+          </div>
+
+          <div class="panel chat-box">
+            <h2>Чат</h2>
+            <div class="chat-history" id="chat-history"></div>
+            <div class="chat-input">
+              <input id="chat-input" type="text" placeholder="Введите сообщение" />
+              <button id="chat-send" class="primary">Отправить</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="registry-view" class="hidden">
+        <div class="panel">
+          <h2>Реестр карточек</h2>
+          <div class="registry-filters">
+            <select id="registry-domain">
+              <option value="">Все домены</option>
+            </select>
+            <select id="registry-status">
+              <option value="">Все статусы</option>
+              <option value="draft">draft</option>
+              <option value="active">active</option>
+              <option value="archived">archived</option>
+            </select>
+            <input id="registry-search" type="text" placeholder="Поиск" />
+            <button id="registry-apply" class="primary">Применить</button>
+          </div>
+
+          <table class="registry-table" id="registry-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Заголовок</th>
+                <th>Домен</th>
+                <th>Статус</th>
+                <th>Владелец</th>
+                <th>Источники</th>
+                <th>Дата события</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+
+          <div class="pagination">
+            <button id="registry-prev">‹</button>
+            <span id="registry-page">1</span>
+            <button id="registry-next">›</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="notification-container"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
