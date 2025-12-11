@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from . import models
 from .db import Base, engine
@@ -14,6 +17,9 @@ from .routers import (
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="MyService API")
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="app")
 
 
 @app.get("/health")
