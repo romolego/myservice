@@ -3,7 +3,7 @@
 Стартовый каркас проекта с разделением на backend и frontend.
 
 ## Структура
-- `backend/` — FastAPI-приложение, подключение к SQLite через SQLAlchemy, заготовки моделей, схем и роутеров.
+- `backend/` — FastAPI-приложение, подключение к SQLite через SQLAlchemy, модели, схемы и CRUD-роутеры для основных сущностей.
 - `frontend/` — статический фронтенд, начальный `index.html`.
 - `docs/` — место для документации.
 
@@ -23,6 +23,15 @@
    ```
 4. Проверьте работоспособность health-check по адресу `http://127.0.0.1:8000/health`.
 
-## Дальнейшая разработка
-- Добавляйте бизнес-логику, поля моделей и схемы по мере необходимости.
-- Реализуйте маршруты в соответствующих файлах внутри `backend/routers/`.
+## CRUD API
+В API доступны CRUD-эндпоинты для сущностей: users, domains, sources, cards, experts, events. Каждый маршрут возвращает Pydantic-схемы и работает с SQLite-базой `myservice.db`.
+
+### Пример запроса
+Создание домена:
+```bash
+curl -X POST http://127.0.0.1:8000/domains \
+  -H "Content-Type: application/json" \
+  -d '{"code": "AI", "name": "Artificial Intelligence", "description": "AI domain"}'
+```
+
+После запуска все маршруты можно исследовать в Swagger UI по адресу `http://127.0.0.1:8000/docs`.

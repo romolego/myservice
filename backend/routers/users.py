@@ -1,3 +1,57 @@
-from fastapi import APIRouter
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from .. import models, schemas
+from ..db import get_db
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+@router.get("/", response_model=List[schemas.UserRead])
+def list_users(db: Session = Depends(get_db)):
+    return db.query(models.User).all()
+
+
+@router.get("/{user_id}", response_model=schemas.UserRead)
+def get_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.get(models.User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return user
+
+
+@router.post("/", response_model=schemas.UserRead, status_code=status.HTTP_201_CREATED)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    db_user = models.User(**user.model_dump())
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+
+@router.put("/{user_id}", response_model=schemas.UserRead)
+def update_user(user_id: int, user: schemas.UserUpdate, db: Session = Depends(get_db)):
+    db_user = db.get(models.User, user_id)
+    if not db_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    for key, value in user.model_dump(exclude_unset=True).items():
+        setattr(db_user, key, value)
+
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+
+@router.delete("/{user_id}", response_model=schemas.UserRead)
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    db_user = db.get(models.User, user_id)
+    if not db_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    result = schemas.UserRead.model_validate(db_user)
+    db.delete(db_user)
+    db.commit()
+    return result

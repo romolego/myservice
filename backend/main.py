@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from . import models
 from .db import Base, engine
 from .routers import (
     users_router,
