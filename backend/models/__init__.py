@@ -45,6 +45,7 @@ class Source(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     domain = relationship("Domain", back_populates="sources")
+    cards = relationship("Card", secondary="cardsources", back_populates="sources")
 
 
 class Card(Base):
@@ -62,6 +63,7 @@ class Card(Base):
     domain = relationship("Domain", back_populates="cards")
     owner = relationship("User", back_populates="cards")
     events = relationship("Event", back_populates="card", cascade="all, delete-orphan")
+    sources = relationship("Source", secondary="cardsources", back_populates="cards")
 
 
 class Expert(Base):
@@ -88,3 +90,23 @@ class Event(Base):
 
     card = relationship("Card", back_populates="events")
     user = relationship("User", back_populates="events")
+
+
+class CardSource(Base):
+    __tablename__ = "cardsources"
+
+    id = Column(Integer, primary_key=True, index=True)
+    card_id = Column(Integer, ForeignKey("cards.id"), nullable=False)
+    source_id = Column(Integer, ForeignKey("sources.id"), nullable=False)
+    note = Column(String, nullable=True)
+
+    card = relationship("Card", back_populates="card_sources")
+    source = relationship("Source", back_populates="card_sources")
+
+
+Card.card_sources = relationship(
+    "CardSource", back_populates="card", cascade="all, delete-orphan"
+)
+Source.card_sources = relationship(
+    "CardSource", back_populates="source", cascade="all, delete-orphan"
+)
