@@ -3,137 +3,100 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MyService — Cards Prototype</title>
+    <title>ИИ-оркестр экспертизы</title>
     <link rel="stylesheet" href="styles.css" />
+    <style>
+      body {
+        background: #ffffff;
+      }
+      .hero {
+        max-width: 960px;
+        margin: 80px auto 40px;
+        padding: 0 20px;
+        text-align: center;
+      }
+      .hero h1 {
+        font-size: 32px;
+        margin-bottom: 12px;
+      }
+      .hero p {
+        color: var(--subtext);
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .nav-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+        margin-top: 32px;
+        padding: 0 20px 60px;
+        max-width: 960px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .nav-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: left;
+        background: #fff;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        transition: transform 0.15s, box-shadow 0.15s, border 0.15s;
+      }
+      .nav-card:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent);
+        box-shadow: 0 4px 12px rgba(44, 123, 229, 0.12);
+      }
+      .nav-card h3 {
+        margin: 0 0 8px;
+      }
+      .nav-card p {
+        margin: 0 0 12px;
+        color: var(--subtext);
+      }
+      .nav-card a {
+        text-decoration: none;
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .tag {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: var(--muted);
+        color: var(--subtext);
+        font-size: 12px;
+        margin-top: 6px;
+      }
+    </style>
   </head>
   <body>
-    <header>
+    <div class="hero">
       <h1>ИИ-оркестр экспертизы</h1>
-      <div class="nav-tabs">
-        <button id="tab-chat" class="active" data-target="chat-view">Чат и карточка</button>
-        <button id="tab-registry" data-target="registry-view">Реестр карточек</button>
+      <p>
+        Сервис помогает командам работать с карточками экспертиз и источниками.
+        Здесь можно вести чат с псевдо-LLM, просматривать карточки и их источники,
+        а также управлять реестром.
+      </p>
+    </div>
+
+    <div class="nav-cards">
+      <div class="nav-card">
+        <h3>Рабочее место</h3>
+        <p>Чат с псевдо-LLM и просмотр выбранной карточки.</p>
+        <a href="/app/workbench.html">Открыть</a>
       </div>
-    </header>
-
-    <main>
-      <section id="chat-view" class="layout">
-        <div class="panel" id="filters-panel">
-          <h2>Фильтры</h2>
-          <div class="filters">
-            <label>
-              Домен
-              <select id="domain-filter">
-                <option value="">Все домены</option>
-              </select>
-            </label>
-            <label>
-              Статус
-              <select id="status-filter">
-                <option value="">Все статусы</option>
-                <option value="draft">draft</option>
-                <option value="active">active</option>
-                <option value="archived">archived</option>
-              </select>
-            </label>
-            <label>
-              Поиск
-              <input id="search-filter" type="text" placeholder="заголовок или описание" />
-            </label>
-            <button id="apply-filters" class="primary">Обновить</button>
-          </div>
-
-          <div class="cards-list" id="cards-list"></div>
-
-          <div class="pagination">
-            <button id="page-prev">‹</button>
-            <span id="page-info">1</span>
-            <button id="page-next">›</button>
-          </div>
-        </div>
-
-        <div class="card-details">
-          <div class="panel" id="card-panel">
-            <h2 id="card-title">Карточка</h2>
-            <div class="detail-grid" id="card-meta">
-              <div>Домен: <span data-field="domain">—</span></div>
-              <div>Владелец: <span data-field="owner">—</span></div>
-              <div>Статус: <span data-field="status">—</span></div>
-              <div>Создано: <span data-field="created">—</span></div>
-              <div>Обновлено: <span data-field="updated">—</span></div>
-            </div>
-
-            <h3>Источники</h3>
-            <table class="sources-table" id="sources-table">
-              <thead>
-                <tr>
-                  <th>Название</th>
-                  <th>Тип</th>
-                  <th>Ссылка</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-
-            <div id="events-block">
-              <h3>События</h3>
-              <div id="events-list"></div>
-            </div>
-          </div>
-
-          <div class="panel chat-box">
-            <h2>Чат</h2>
-            <div class="chat-history" id="chat-history"></div>
-            <div class="chat-input">
-              <input id="chat-input" type="text" placeholder="Введите сообщение" />
-              <button id="chat-send" class="primary">Отправить</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="registry-view" class="hidden">
-        <div class="panel">
-          <h2>Реестр карточек</h2>
-          <div class="registry-filters">
-            <select id="registry-domain">
-              <option value="">Все домены</option>
-            </select>
-            <select id="registry-status">
-              <option value="">Все статусы</option>
-              <option value="draft">draft</option>
-              <option value="active">active</option>
-              <option value="archived">archived</option>
-            </select>
-            <input id="registry-search" type="text" placeholder="Поиск" />
-            <button id="registry-apply" class="primary">Применить</button>
-          </div>
-
-          <table class="registry-table" id="registry-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Заголовок</th>
-                <th>Домен</th>
-                <th>Статус</th>
-                <th>Владелец</th>
-                <th>Источники</th>
-                <th>Дата события</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-
-          <div class="pagination">
-            <button id="registry-prev">‹</button>
-            <span id="registry-page">1</span>
-            <button id="registry-next">›</button>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <div id="notification-container"></div>
-
-    <script src="app.js"></script>
+      <div class="nav-card">
+        <h3>Реестр карточек</h3>
+        <p>Список карточек с фильтрацией и быстрым переходом к деталям.</p>
+        <a href="/app/workbench.html#registry">Перейти к реестру</a>
+      </div>
+      <div class="nav-card">
+        <h3>Новые страницы</h3>
+        <p>Раздел для будущих инструментов и отчётов.</p>
+        <span class="tag">В разработке</span>
+      </div>
+    </div>
   </body>
 </html>

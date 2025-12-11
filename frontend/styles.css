@@ -256,6 +256,28 @@ button.primary:disabled {
   flex: 1;
 }
 
+.message-text {
+  margin-bottom: 6px;
+}
+
+.used-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--subtext);
+}
+
+.link-button {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+}
+
 .registry-filters {
   display: flex;
   flex-wrap: wrap;
