@@ -1,25 +1,151 @@
-from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
-class User(BaseModel):
+class UserBase(BaseModel):
+    email: str
+    name: str
+    role: str
+
+
+class UserCreate(UserBase):
     pass
 
 
-class Domain(BaseModel):
+class UserUpdate(BaseModel):
+    email: Optional[str] = None
+    name: Optional[str] = None
+    role: Optional[str] = None
+
+
+class UserRead(UserBase):
+    id: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DomainBase(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+
+
+class DomainCreate(DomainBase):
     pass
 
 
-class Source(BaseModel):
+class DomainUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class DomainRead(DomainBase):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SourceBase(BaseModel):
+    domain_id: int
+    title: str
+    type: str
+    uri: str
+    is_active: bool = True
+
+
+class SourceCreate(SourceBase):
     pass
 
 
-class Card(BaseModel):
+class SourceUpdate(BaseModel):
+    domain_id: Optional[int] = None
+    title: Optional[str] = None
+    type: Optional[str] = None
+    uri: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class SourceRead(SourceBase):
+    id: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CardBase(BaseModel):
+    domain_id: int
+    title: str
+    description: str
+    status: str
+    owner_id: int
+
+
+class CardCreate(CardBase):
     pass
 
 
-class Expert(BaseModel):
+class CardUpdate(BaseModel):
+    domain_id: Optional[int] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    owner_id: Optional[int] = None
+
+
+class CardRead(CardBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExpertBase(BaseModel):
+    user_id: int
+    domain_id: int
+    level: str
+
+
+class ExpertCreate(ExpertBase):
     pass
 
 
-class Event(BaseModel):
+class ExpertUpdate(BaseModel):
+    user_id: Optional[int] = None
+    domain_id: Optional[int] = None
+    level: Optional[str] = None
+
+
+class ExpertRead(ExpertBase):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EventBase(BaseModel):
+    card_id: int
+    user_id: int
+    event_type: str
+    payload: Optional[str] = None
+
+
+class EventCreate(EventBase):
     pass
+
+
+class EventUpdate(BaseModel):
+    card_id: Optional[int] = None
+    user_id: Optional[int] = None
+    event_type: Optional[str] = None
+    payload: Optional[str] = None
+
+
+class EventRead(EventBase):
+    id: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
