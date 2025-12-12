@@ -18,73 +18,121 @@
     <main>
       <section id="chat-view" class="layout">
         <div class="panel" id="assistant-panel">
-          <h2>Поисковый ассистент</h2>
-          <label class="full-width">
-            Поисковый запрос
-            <textarea id="assistant-query" rows="4" placeholder="Опишите, что ищете"></textarea>
-          </label>
-          <button id="assistant-search" class="primary">Подобрать карточки</button>
-
-          <div class="assistant-filters">
-            <label>
-              Домен
-              <select id="assistant-domain-filter">
-                <option value="">Все домены</option>
-              </select>
-            </label>
-            <label>
-              Статус
-              <select id="assistant-status-filter">
-                <option value="">Все статусы</option>
-                <option value="draft">draft</option>
-                <option value="active">active</option>
-                <option value="archived">archived</option>
-              </select>
-            </label>
+          <div class="panel-header">
+            <div>
+              <h2>Поисковый ассистент</h2>
+              <p class="muted">Введите вопрос, подберите карточки и отметьте подходящие</p>
+            </div>
+            <div class="assistant-actions">
+              <button id="assistant-clear" class="link-button">Очистить подборку</button>
+            </div>
           </div>
 
-          <div class="cards-list" id="assistant-results"></div>
+          <div class="assistant-query-block">
+            <label class="full-width">
+              Поисковый запрос
+              <textarea
+                id="assistant-query"
+                rows="3"
+                placeholder="Например: Как формируется XML акта освидетельствования в ИСУП?"
+              ></textarea>
+            </label>
+            <div class="assistant-controls">
+              <div class="assistant-filters">
+                <div class="filter-row">
+                  <label class="filter-chip">
+                    <input type="checkbox" value="green" class="status-filter" />
+                    Зеленые
+                  </label>
+                  <label class="filter-chip">
+                    <input type="checkbox" value="yellow" class="status-filter" />
+                    Желтые
+                  </label>
+                  <label class="filter-chip">
+                    <input type="checkbox" value="red" class="status-filter" />
+                    Красные
+                  </label>
+                  <label class="filter-chip">
+                    <input type="checkbox" value="grey" class="status-filter" />
+                    Серые
+                  </label>
+                </div>
+                <div class="filter-row">
+                  <label>
+                    Домен
+                    <select id="assistant-domain-filter">
+                      <option value="">Все домены</option>
+                    </select>
+                  </label>
+                  <label>
+                    Сортировка
+                    <select id="assistant-sort">
+                      <option value="relevance">По релевантности</option>
+                      <option value="verification">По дате верификации</option>
+                      <option value="title">По заголовку</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <div class="assistant-buttons">
+                <button id="assistant-search" class="primary">Подобрать</button>
+                <span class="muted">Ctrl + Enter</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="selection-toolbar">
+            <div class="selection-buttons">
+              <button id="mark-all" class="link-button">Отметить все</button>
+              <button id="unmark-all" class="link-button">Снять отметки</button>
+              <button id="only-selected" class="link-button">Показать только выбранные</button>
+              <button id="only-unselected" class="link-button">Показать только не выбранные</button>
+              <button id="choose-recommended" class="link-button">Выбрать только актуальные и рекомендуемые</button>
+            </div>
+            <div class="selection-summary" id="selection-summary">Выбрано источников: 0</div>
+          </div>
+
+          <div class="assistant-results" id="assistant-results"></div>
         </div>
 
         <div class="card-details">
-          <div class="panel" id="card-panel">
-            <h2 id="card-title">Карточка</h2>
-            <div class="detail-grid" id="card-meta">
-              <div>Домен: <span data-field="domain">—</span></div>
-              <div>Владелец: <span data-field="owner">—</span></div>
-              <div>Статус: <span data-field="status">—</span></div>
-              <div>Создано: <span data-field="created">—</span></div>
-              <div>Обновлено: <span data-field="updated">—</span></div>
-            </div>
-
-            <h3>Источники</h3>
-            <table class="sources-table" id="sources-table">
-              <thead>
-                <tr>
-                  <th>Название</th>
-                  <th>Тип</th>
-                  <th>Ссылка</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-
-            <div id="events-block">
-              <h3>События</h3>
-              <div id="events-list"></div>
-            </div>
-          </div>
-
-          <div class="panel chat-box">
+          <div class="panel chat-panel">
             <div class="chat-header">
-              <h2>Чат по выбранной карточке</h2>
-              <p class="muted">Сейчас чат работает в режиме имитации, ответы формируются на основе заголовков/описаний карточек.</p>
+              <div>
+                <h2>Чат по выбранным источникам</h2>
+                <p class="muted">Выберите карточки слева, чтобы активировать чат</p>
+              </div>
+              <div class="chat-toggles">
+                <label class="filter-chip">
+                  <input type="checkbox" id="hide-sources-toggle" /> Скрыть источники в ответах
+                </label>
+              </div>
             </div>
+
+            <div class="selected-chips" id="selected-chips"></div>
+            <div class="chat-toolbar">
+              <div class="chat-set-info" id="chat-set-info">Текущий набор источников: 0</div>
+              <div class="chat-buttons">
+                <button id="clear-selected" class="link-button">Очистить выбранные источники</button>
+                <button id="clear-chat" class="link-button">Очистить чат</button>
+                <button id="restore-chat" class="link-button">Вернуть предыдущий чат</button>
+                <button id="export-chat" class="link-button">Экспортировать всю историю чата</button>
+              </div>
+            </div>
+
             <div class="chat-history" id="chat-history"></div>
-            <div class="chat-input">
+
+            <div class="chat-input" id="prechat-composer">
+              <input id="prechat-input" type="text" placeholder="Текст первого вопроса" />
+              <button id="prechat-send" class="primary">Начать чат</button>
+            </div>
+
+            <div class="chat-input hidden" id="chat-composer">
               <input id="chat-input" type="text" placeholder="Введите сообщение" />
               <button id="chat-send" class="primary">Отправить</button>
             </div>
+
+            <div class="chat-blocker hidden" id="chat-blocker">Выберите хотя бы одну карточку слева, чтобы начать диалог</div>
           </div>
         </div>
       </section>
@@ -93,32 +141,76 @@
         <div class="panel">
           <div class="registry-header">
             <h2>Реестр карточек</h2>
-            <button id="create-card" class="primary">Создать карточку</button>
+            <div class="registry-actions">
+              <button id="create-card" class="primary">Создать карточку</button>
+              <button class="link-button" id="import-cards">Импорт из файла</button>
+              <button class="link-button" id="export-cards">Экспорт выбранных</button>
+              <button class="link-button" id="check-sla">Проверить статусы (SLA)</button>
+              <button class="link-button" id="archive-cards">Архивировать</button>
+              <input id="registry-search" type="text" placeholder="Поиск по ID, заголовку, тегам" />
+            </div>
           </div>
           <div class="registry-filters">
-            <select id="registry-domain">
-              <option value="">Все домены</option>
-            </select>
-            <select id="registry-status">
-              <option value="">Все статусы</option>
-              <option value="draft">draft</option>
-              <option value="active">active</option>
-              <option value="archived">archived</option>
-            </select>
-            <input id="registry-search" type="text" placeholder="Поиск" />
-            <button id="registry-apply" class="primary">Применить</button>
+            <div class="filter-row">
+              <select id="registry-domain">
+                <option value="">Все домены</option>
+              </select>
+              <select id="registry-status">
+                <option value="">Все статусы</option>
+                <option value="draft">draft</option>
+                <option value="active">active</option>
+                <option value="archived">archived</option>
+              </select>
+              <select id="registry-sort">
+                <option value="updated">По дате актуализации</option>
+                <option value="title">По заголовку</option>
+              </select>
+              <select id="registry-domain-mode">
+                <option value="all">Все домены</option>
+              </select>
+            </div>
+            <div class="filter-row">
+              <input type="text" placeholder="Ответственный" id="registry-owner" />
+              <input type="text" placeholder="Ревьюер" id="registry-reviewer" />
+              <label class="filter-chip"><input type="checkbox" id="registry-only-mine" /> Только мои</label>
+              <select id="registry-conf">
+                <option value="">Конфиденциальность</option>
+                <option value="public">Публично</option>
+                <option value="internal">Внутренняя</option>
+              </select>
+            </div>
+            <div class="filter-row">
+              <label class="filter-chip">Проверено с <input type="date" id="registry-verified-from" /></label>
+              <select id="registry-page-size">
+                <option value="10">На странице: 10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+              <div class="filter-chip">Вид: Таблица / Компактно</div>
+              <button id="registry-apply" class="primary">Применить</button>
+            </div>
           </div>
 
           <table class="registry-table" id="registry-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Заголовок</th>
-                <th>Домен</th>
+                <th>Выб</th>
+                <th>ID / UID</th>
+                <th>Наименование</th>
+                <th>Тип</th>
+                <th>Версия</th>
                 <th>Статус</th>
-                <th>Владелец</th>
-                <th>Источники</th>
-                <th>Дата события</th>
+                <th>Домен</th>
+                <th>Ответственный / Ревьюер</th>
+                <th>Последняя проверка</th>
+                <th>Следующая проверка</th>
+                <th>Исп.</th>
+                <th>Лайки</th>
+                <th>Закладки</th>
+                <th>Конф.</th>
+                <th>Связи</th>
+                <th>В эксперте</th>
+                <th>Действия</th>
               </tr>
             </thead>
             <tbody></tbody>

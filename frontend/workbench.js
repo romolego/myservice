@@ -1,14 +1,37 @@
 const API_BASE = "http://127.0.0.1:8000";
 
+const STATUS_COLORS = {
+  active: "green",
+  draft: "yellow",
+  archived: "grey",
+  green: "green",
+  yellow: "yellow",
+  red: "red",
+  grey: "grey",
+};
+
 const state = {
-  activeCardId: null,
   domains: [],
   users: [],
+  cardsCache: [],
   assistant: {
     query: "",
-    results: [],
-    filterDomain: "",
-    filterStatus: "",
+    searchBlocks: [],
+    filters: {
+      domain: "",
+      statuses: new Set(),
+      sort: "relevance",
+      visibility: "all",
+    },
+    selections: new Set(),
+    hasChatStarted: false,
+  },
+  chat: {
+    messages: [],
+    setHistory: [],
+    activeSetId: null,
+    hideSources: false,
+    previousChat: [],
   },
   registry: {
     page: 1,
@@ -19,37 +42,45 @@ const state = {
       status: "",
       search: "",
     },
-    highlightId: null,
   },
 };
 
-const elements = {
-  // Assistant
+const el = {
   assistantQuery: document.getElementById("assistant-query"),
   assistantSearch: document.getElementById("assistant-search"),
-  assistantResults: document.getElementById("assistant-results"),
   assistantDomain: document.getElementById("assistant-domain-filter"),
-  assistantStatus: document.getElementById("assistant-status-filter"),
+  assistantSort: document.getElementById("assistant-sort"),
+  assistantResults: document.getElementById("assistant-results"),
+  assistantClear: document.getElementById("assistant-clear"),
+  statusFilters: Array.from(document.querySelectorAll(".status-filter")),
+  markAll: document.getElementById("mark-all"),
+  unmarkAll: document.getElementById("unmark-all"),
+  onlySelected: document.getElementById("only-selected"),
+  onlyUnselected: document.getElementById("only-unselected"),
+  chooseRecommended: document.getElementById("choose-recommended"),
+  selectionSummary: document.getElementById("selection-summary"),
 
-  // Card details
-  cardTitle: document.getElementById("card-title"),
-  cardMeta: document.getElementById("card-meta"),
-  sourcesTableBody: document.querySelector("#sources-table tbody"),
-  eventsList: document.getElementById("events-list"),
-  eventsBlock: document.getElementById("events-block"),
-
-  // Chat
+  selectedChips: document.getElementById("selected-chips"),
+  chatSetInfo: document.getElementById("chat-set-info"),
   chatHistory: document.getElementById("chat-history"),
+  chatBlocker: document.getElementById("chat-blocker"),
+  prechatComposer: document.getElementById("prechat-composer"),
+  prechatInput: document.getElementById("prechat-input"),
+  prechatSend: document.getElementById("prechat-send"),
+  chatComposer: document.getElementById("chat-composer"),
   chatInput: document.getElementById("chat-input"),
   chatSend: document.getElementById("chat-send"),
+  hideSourcesToggle: document.getElementById("hide-sources-toggle"),
+  clearSelected: document.getElementById("clear-selected"),
+  clearChat: document.getElementById("clear-chat"),
+  restoreChat: document.getElementById("restore-chat"),
+  exportChat: document.getElementById("export-chat"),
 
-  // Tabs
   tabChat: document.getElementById("tab-chat"),
   tabRegistry: document.getElementById("tab-registry"),
   chatView: document.getElementById("chat-view"),
   registryView: document.getElementById("registry-view"),
 
-  // Registry
   registryTableBody: document.querySelector("#registry-table tbody"),
   registryPage: document.getElementById("registry-page"),
   registryPrev: document.getElementById("registry-prev"),
@@ -58,12 +89,8 @@ const elements = {
   registryStatus: document.getElementById("registry-status"),
   registrySearch: document.getElementById("registry-search"),
   registryApply: document.getElementById("registry-apply"),
-  createCardBtn: document.getElementById("create-card"),
 
-  // Notifications
   notificationContainer: document.getElementById("notification-container"),
-
-  // Modal
   modalOverlay: document.getElementById("modal-overlay"),
   modalClose: document.getElementById("modal-close"),
   modalCancel: document.getElementById("modal-cancel"),
@@ -74,6 +101,10 @@ const elements = {
   cardOwnerInput: document.getElementById("card-owner-input"),
   cardStatusInput: document.getElementById("card-status-input"),
   cardTagsInput: document.getElementById("card-tags-input"),
+  cardContentInput: null,
+  cardQuestionsInput: null,
+  createCardBtn: document.getElementById("create-card"),
+  modalBody: null,
 };
 
 function showNotification(message, type = "error", timeout = 4000) {
@@ -84,25 +115,23 @@ function showNotification(message, type = "error", timeout = 4000) {
     note.style.borderColor = "#2fb344";
     note.style.color = "#2fb344";
   }
-  elements.notificationContainer.appendChild(note);
+  el.notificationContainer.appendChild(note);
   setTimeout(() => note.remove(), timeout);
 }
 
 function switchTab(target) {
   const isChat = target === "chat-view";
-  elements.chatView.classList.toggle("hidden", !isChat);
-  elements.registryView.classList.toggle("hidden", isChat);
-  elements.tabChat.classList.toggle("active", isChat);
-  elements.tabRegistry.classList.toggle("active", !isChat);
+  el.chatView.classList.toggle("hidden", !isChat);
+  el.registryView.classList.toggle("hidden", isChat);
+  el.tabChat.classList.toggle("active", isChat);
+  el.tabRegistry.classList.toggle("active", !isChat);
   if (!isChat) {
     loadRegistry();
   }
 }
 
-elements.tabChat.addEventListener("click", () => switchTab("chat-view"));
-elements.tabRegistry.addEventListener("click", () => switchTab("registry-view"));
-
-aSyncInit();
+el.tabChat.addEventListener("click", () => switchTab("chat-view"));
+el.tabRegistry.addEventListener("click", () => switchTab("registry-view"));
 
 async function fetchDomains() {
   const res = await fetch(`${API_BASE}/domains/`);
@@ -116,9 +145,16 @@ async function fetchUsers() {
   return res.json();
 }
 
+async function fetchCards() {
+  const res = await fetch(`${API_BASE}/cards/`);
+  if (!res.ok) throw new Error("Не удалось загрузить карточки");
+  return res.json();
+}
+
 function fillSelect(select, items, formatLabel, formatValue = (item) => item.id) {
-  const firstOption = select.querySelector("option")?.outerHTML || "";
-  select.innerHTML = firstOption;
+  if (!select) return;
+  const first = select.querySelector("option")?.outerHTML || "";
+  select.innerHTML = first;
   items.forEach((item) => {
     const opt = document.createElement("option");
     opt.value = formatValue(item);
@@ -127,207 +163,419 @@ function fillSelect(select, items, formatLabel, formatValue = (item) => item.id)
   });
 }
 
-function filterAssistantCards(cards) {
-  return cards.filter((card) => {
-    const matchDomain =
-      !state.assistant.filterDomain || String(card.domain_id || card.domain?.id || "") === state.assistant.filterDomain || card.domain_name === state.assistant.filterDomain;
-    const matchStatus = !state.assistant.filterStatus || card.status === state.assistant.filterStatus;
-    return matchDomain && matchStatus;
+function ensureAssistantOptions() {
+  fillSelect(el.assistantDomain, state.domains, (d) => `${d.code} — ${d.name}`);
+  fillSelect(el.registryDomain, state.domains, (d) => `${d.code} — ${d.name}`);
+  fillSelect(el.cardDomainInput, state.domains, (d) => `${d.code} — ${d.name}`);
+}
+
+function ensureUserOptions() {
+  fillSelect(el.cardOwnerInput, state.users, (u) => u.name);
+}
+
+function colorDot(status) {
+  const color = STATUS_COLORS[status] || "grey";
+  return `<span class="dot dot-${color}"></span>`;
+}
+
+function statusLabel(status) {
+  if (!status) return "—";
+  const map = { green: "актуально", active: "активно", yellow: "требует ревизии", red: "критично", grey: "черновик" };
+  return map[status] || status;
+}
+
+function computeScore(card, queryTerms) {
+  if (!queryTerms.length) return 0;
+  let score = 0;
+  const textFields = [card.title || "", card.description || "", card.content || ""];
+  queryTerms.forEach((term) => {
+    if ((card.title || "").toLowerCase().includes(term)) score += 5;
+    if ((card.description || "").toLowerCase().includes(term)) score += 3;
+    if ((card.content || "").toLowerCase().includes(term)) score += 2;
+  });
+  const color = STATUS_COLORS[card.status] || "";
+  if (color === "yellow") score -= 1;
+  if (color === "red") score -= 2;
+  if (color === "grey") score -= 0.5;
+  return score;
+}
+
+function sortResults(results) {
+  const sort = state.assistant.filters.sort;
+  const sorted = [...results];
+  if (sort === "title") {
+    sorted.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+  } else if (sort === "verification") {
+    sorted.sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+  } else {
+    sorted.sort((a, b) => (b.score || 0) - (a.score || 0));
+  }
+  return sorted;
+}
+
+function applyAssistantFilters(results) {
+  const domain = state.assistant.filters.domain;
+  const statuses = state.assistant.filters.statuses;
+  const visibility = state.assistant.filters.visibility;
+  return results.filter((item) => {
+    if (domain && String(item.domain_id || "") !== domain) return false;
+    if (statuses.size && !statuses.has(STATUS_COLORS[item.status] || item.status)) return false;
+    const isSelected = state.assistant.selections.has(item.id);
+    if (visibility === "selected" && !isSelected) return false;
+    if (visibility === "unselected" && isSelected) return false;
+    return true;
   });
 }
 
 function renderAssistantList() {
-  elements.assistantResults.innerHTML = "";
-  const filtered = filterAssistantCards(state.assistant.results);
-
-  if (!filtered.length) {
-    const empty = document.createElement("div");
-    empty.textContent = "Нет подобранных карточек";
-    elements.assistantResults.appendChild(empty);
+  el.assistantResults.innerHTML = "";
+  if (!state.assistant.searchBlocks.length) {
+    el.assistantResults.textContent = "Пока нет результатов. Введите вопрос и нажмите Подобрать.";
     return;
   }
 
-  filtered.forEach((item) => {
-    const cardEl = document.createElement("div");
-    cardEl.className = "card-item";
-    cardEl.dataset.id = item.id;
-    if (state.activeCardId === item.id) cardEl.classList.add("active");
-    const domainLabel = item.domain_name || item.domain?.name || "";
-    const domainCode = item.domain_code || item.domain?.code || "";
-    cardEl.innerHTML = `
-      <h3>${item.title}</h3>
-      <div class="card-meta">
-        <span class="badge">${domainCode ? domainCode : domainLabel}</span>
-        <span class="badge">${item.status || ""}</span>
-        ${item.updated_at ? `<span>Обновлено: ${new Date(item.updated_at).toLocaleString()}</span>` : ""}
-      </div>
-    `;
-    cardEl.addEventListener("click", () => selectCard(item.id));
-    elements.assistantResults.appendChild(cardEl);
+  state.assistant.searchBlocks.forEach((block) => {
+    const blockEl = document.createElement("div");
+    blockEl.className = "search-block";
+    const head = document.createElement("div");
+    head.className = "search-block-header";
+    head.innerHTML = `<div class="search-question">Вы: ${block.query}</div><div class="search-time">${new Date(block.createdAt).toLocaleTimeString()}</div>`;
+    blockEl.appendChild(head);
+
+    const list = document.createElement("div");
+    list.className = "cards-list";
+
+    const filtered = applyAssistantFilters(block.results);
+    const sorted = sortResults(filtered);
+
+    if (!sorted.length) {
+      const empty = document.createElement("div");
+      empty.className = "muted";
+      empty.textContent = "Нет карточек по текущим фильтрам";
+      list.appendChild(empty);
+    } else {
+      sorted.forEach((item) => list.appendChild(renderAssistantItem(item)));
+    }
+
+    blockEl.appendChild(list);
+    el.assistantResults.appendChild(blockEl);
   });
+
+  updateSelectionSummary();
+  syncChatAvailability();
+}
+
+function renderAssistantItem(item) {
+  const cardEl = document.createElement("div");
+  cardEl.className = "card-item selectable";
+  cardEl.dataset.id = item.id;
+  const selected = state.assistant.selections.has(item.id);
+  if (selected) cardEl.classList.add("active");
+
+  const domain = state.domains.find((d) => d.id === item.domain_id);
+  const domainLabel = domain ? `${domain.code || ""}` : "—";
+  const ownerLabel = item.owner_name || "—";
+  const tags = item.tags ? item.tags.split(",").filter(Boolean) : [];
+
+  cardEl.innerHTML = `
+    <div class="card-row">
+      <label class="checkbox-row">
+        <input type="checkbox" ${selected ? "checked" : ""} data-select-card="${item.id}" />
+        ${colorDot(item.status)}
+        <div class="card-title-area">
+          <div class="card-title-line">
+            <span class="card-title">${item.title || "Без названия"}</span>
+            <span class="badge">${domainLabel}</span>
+            <span class="badge status-pill status-${STATUS_COLORS[item.status] || "grey"}">${statusLabel(item.status)}</span>
+          </div>
+          <div class="card-summary">${item.description || item.summary || "—"}</div>
+        </div>
+      </label>
+    </div>
+    <div class="card-row meta-row">
+      <div class="meta">Источник: ${item.source || "—"} (${statusLabel(item.source_status || item.status)})</div>
+      <div class="meta">Владелец: ${ownerLabel}</div>
+      <div class="meta">Актуализация: ${item.updated_at ? new Date(item.updated_at).toLocaleDateString() : "—"}</div>
+      <div class="meta">Домен: ${domainLabel}</div>
+    </div>
+    <div class="card-row tags-row">
+      <div class="tags">
+        ${tags.map((t) => `<span class="tag">${t}</span>`).join("")}
+      </div>
+      <div class="status-text">${statusLabel(item.status)}</div>
+    </div>
+  `;
+
+  cardEl.querySelector("input[type='checkbox']").addEventListener("change", (e) => {
+    toggleSelection(item.id, e.target.checked);
+  });
+
+  cardEl.addEventListener("click", (e) => {
+    if (e.target.tagName.toLowerCase() === "input") return;
+    toggleSelection(item.id, !selected);
+  });
+
+  return cardEl;
+}
+
+function toggleSelection(id, checked) {
+  if (checked) {
+    state.assistant.selections.add(id);
+  } else {
+    state.assistant.selections.delete(id);
+  }
+  updateSelectionSummary();
+  renderAssistantList();
+  renderSelectedChips();
+}
+
+function updateSelectionSummary() {
+  el.selectionSummary.textContent = `Выбрано источников: ${state.assistant.selections.size}`;
+}
+
+function renderSelectedChips() {
+  el.selectedChips.innerHTML = "";
+  const ids = Array.from(state.assistant.selections);
+  if (!ids.length) {
+    el.selectedChips.innerHTML = '<div class="muted">Нет выбранных источников</div>';
+  }
+
+  ids.forEach((id) => {
+    const card = state.cardsCache.find((c) => c.id === id);
+    const title = card?.title || `Карточка ${id}`;
+    const status = card?.status;
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    chip.innerHTML = `${colorDot(status)} <span class="chip-title">${title.slice(0, 32)}${title.length > 32 ? "…" : ""}</span> <button class="chip-remove" data-remove="${id}">✕</button>`;
+    chip.querySelector("button").addEventListener("click", () => {
+      toggleSelection(id, false);
+    });
+    el.selectedChips.appendChild(chip);
+  });
+
+  el.chatSetInfo.textContent = `Текущий набор источников: ${ids.length}`;
+}
+
+function clearSelection() {
+  state.assistant.selections.clear();
+  renderAssistantList();
+  renderSelectedChips();
+}
+
+function handleVisibility(mode) {
+  state.assistant.filters.visibility = mode;
+  renderAssistantList();
+}
+
+function chooseRecommended() {
+  const lastBlock = state.assistant.searchBlocks[state.assistant.searchBlocks.length - 1];
+  if (!lastBlock) return;
+  const sorted = sortResults(lastBlock.results).filter((item) => {
+    const color = STATUS_COLORS[item.status] || "";
+    return color === "green" || color === "active";
+  });
+  clearSelection();
+  sorted.slice(0, 3).forEach((item) => state.assistant.selections.add(item.id));
+  renderAssistantList();
+  renderSelectedChips();
+}
+
+function addSearchBlock(query, results) {
+  state.assistant.searchBlocks.unshift({
+    query,
+    results,
+    createdAt: Date.now(),
+  });
+  if (!state.assistant.hasChatStarted) {
+    results.slice(0, 2).forEach((item) => state.assistant.selections.add(item.id));
+  }
+  renderAssistantList();
+  renderSelectedChips();
+  syncPrechatPrompt();
+}
+
+function syncPrechatPrompt() {
+  const last = state.assistant.searchBlocks[0];
+  if (last) {
+    el.prechatInput.value = last.query;
+  }
 }
 
 async function handleAssistantSearch() {
-  const text = elements.assistantQuery.value.trim();
+  const text = el.assistantQuery.value.trim();
   state.assistant.query = text;
   if (!text) {
-    showNotification("Введите текст запроса для подбора карточек", "error", 2500);
+    showNotification("Введите текст запроса для подбора карточек");
     return;
   }
-
   try {
-    elements.assistantSearch.disabled = true;
-    const res = await fetch(`${API_BASE}/chat/mock`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, card_id: null }),
-    });
-    if (!res.ok) throw new Error("Не удалось подобрать карточки");
-    const data = await res.json();
-    state.assistant.results = (data.used_cards || []).map((c) => ({
-      ...c,
-      domain_name: c.domain_name,
-    }));
-    renderAssistantList();
+    el.assistantSearch.disabled = true;
+    const queryTerms = text.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+    const domainFilter = state.assistant.filters.domain;
+    const raw = state.cardsCache.filter((card) => (domainFilter ? String(card.domain_id || "") === domainFilter : true));
+
+    const scored = raw
+      .map((card) => ({
+        ...card,
+        score: computeScore(card, queryTerms),
+      }))
+      .filter((card) => card.score > 0 || queryTerms.length === 0);
+
+    addSearchBlock(text, scored);
   } catch (err) {
     showNotification(err.message || "Ошибка подбора карточек");
   } finally {
-    elements.assistantSearch.disabled = false;
+    el.assistantSearch.disabled = false;
   }
 }
 
-function ensureAssistantOptions() {
-  fillSelect(
-    elements.assistantDomain,
-    state.domains,
-    (d) => `${d.code} — ${d.name}`,
-    (d) => d.name
-  );
-  fillSelect(elements.registryDomain, state.domains, (d) => `${d.code} — ${d.name}`);
-  fillSelect(elements.cardDomainInput, state.domains, (d) => `${d.code} — ${d.name}`);
+function syncChatAvailability() {
+  const hasSelection = state.assistant.selections.size > 0;
+  el.chatBlocker.classList.toggle("hidden", hasSelection);
+  el.prechatComposer.classList.toggle("hidden", !hasSelection || state.chat.messages.length > 0);
+  el.chatComposer.classList.toggle("hidden", !hasSelection || state.chat.messages.length === 0);
+  el.prechatInput.disabled = !hasSelection;
+  el.prechatSend.disabled = !hasSelection;
+  el.chatInput.disabled = !hasSelection;
+  el.chatSend.disabled = !hasSelection;
 }
 
-function ensureUserOptions() {
-  fillSelect(elements.cardOwnerInput, state.users, (u) => u.name);
-}
-
-function addChatMessage(text, from = "bot", usedCards = []) {
+function addChatMessage(text, from = "system", meta = {}) {
   const msg = document.createElement("div");
   msg.className = `message ${from}`;
-
   const textEl = document.createElement("div");
   textEl.className = "message-text";
   textEl.textContent = text;
   msg.appendChild(textEl);
 
-  if (usedCards && usedCards.length) {
-    const usedWrap = document.createElement("div");
-    usedWrap.className = "used-cards";
-    const label = document.createElement("span");
-    label.textContent = "Ещё подходящие карточки: ";
-    usedWrap.appendChild(label);
+  if (from === "bot" && meta.usedCards && meta.usedCards.length && !state.chat.hideSources) {
+    const cite = document.createElement("div");
+    cite.className = "used-cards";
+    cite.innerHTML = `<strong>Источники:</strong> ${meta.usedCards
+      .map((c) => `${c.title} (${statusLabel(c.status)})`)
+      .join(", ")}`;
+    msg.appendChild(cite);
+  }
 
-    usedCards.forEach((card, idx) => {
-      const link = document.createElement("button");
-      link.type = "button";
-      link.className = "link-button";
-      link.textContent = card.title;
-      link.addEventListener("click", () => {
-        addCardsToAssistant([card]);
-        selectCard(card.id);
-      });
-      usedWrap.appendChild(link);
-      if (idx < usedCards.length - 1) {
-        const sep = document.createElement("span");
-        sep.textContent = ", ";
-        usedWrap.appendChild(sep);
+  if (from === "bot") {
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "link-button";
+    copyBtn.textContent = "Скопировать ответ";
+    copyBtn.addEventListener("click", async () => {
+      const textToCopy = state.chat.hideSources ? text : `${text}\n\nИсточники: ${meta.usedCards
+        .map((c) => `${c.title} (${statusLabel(c.status)})`)
+        .join(", ")}`;
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        showNotification("Ответ скопирован", "success", 1500);
+      } catch (err) {
+        console.error(err);
       }
     });
-    msg.appendChild(usedWrap);
+    msg.appendChild(copyBtn);
   }
 
-  elements.chatHistory.appendChild(msg);
-  elements.chatHistory.scrollTop = elements.chatHistory.scrollHeight;
+  if (from === "system" && meta.badge) {
+    const badge = document.createElement("button");
+    badge.className = "link-button";
+    badge.textContent = meta.badge;
+    badge.addEventListener("click", () => restoreSelection(meta.setId));
+    msg.appendChild(badge);
+  }
+
+  el.chatHistory.appendChild(msg);
+  el.chatHistory.scrollTop = el.chatHistory.scrollHeight;
+  state.chat.messages.push({ from, text, meta });
 }
 
-elements.chatSend.addEventListener("click", handleChatSend);
-elements.chatInput.addEventListener("keypress", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    handleChatSend();
-  }
-});
+function snapshotSelection() {
+  const id = `set-${Date.now()}`;
+  const ids = Array.from(state.assistant.selections);
+  state.chat.setHistory.push({ id, ids, createdAt: Date.now() });
+  state.chat.activeSetId = id;
+  return id;
+}
 
-async function handleChatSend() {
-  const text = elements.chatInput.value.trim();
-  if (!text) return;
-  if (!state.activeCardId) {
-    showNotification("Сначала выберите карточку слева");
+async function sendChat(message) {
+  const selectedIds = Array.from(state.assistant.selections);
+  if (!selectedIds.length) {
+    showNotification("Нужно выбрать хотя бы одну карточку");
     return;
   }
 
-  addChatMessage(text, "user");
-  elements.chatInput.value = "";
-
+  addChatMessage(message, "user");
+  const payload = { message, selected_card_ids: selectedIds };
   try {
-    elements.chatSend.disabled = true;
-    const payload = { message: text, card_id: state.activeCardId };
+    el.chatSend.disabled = true;
+    el.prechatSend.disabled = true;
     const res = await fetch(`${API_BASE}/chat/mock`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error("Ошибка обращения к псевдо-LLM");
+    if (!res.ok) throw new Error("Ошибка обращения к модели");
     const data = await res.json();
-    addChatMessage(data.answer, "bot", data.used_cards || []);
+    addChatMessage(data.answer, "bot", { usedCards: data.used_cards });
   } catch (err) {
-    showNotification("Ошибка обращения к псевдо-LLM, попробуйте ещё раз");
+    showNotification(err.message || "Не удалось получить ответ");
   } finally {
-    elements.chatSend.disabled = false;
-    elements.chatInput.focus();
+    el.chatSend.disabled = false;
+    el.prechatSend.disabled = false;
   }
 }
 
-elements.assistantSearch.addEventListener("click", handleAssistantSearch);
-elements.assistantDomain.addEventListener("change", (e) => {
-  state.assistant.filterDomain = e.target.value;
+function handlePrechatStart() {
+  const text = el.prechatInput.value.trim();
+  if (!text) return;
+  const setId = snapshotSelection();
+  addChatMessage(
+    `Создан временный эксперт на основе ${state.assistant.selections.size} источников`,
+    "system",
+    { badge: `Сделано на основе подборки ${setId}`, setId }
+  );
+  state.assistant.hasChatStarted = true;
+  syncChatAvailability();
+  sendChat(text);
+}
+
+function handleChatSend() {
+  const text = el.chatInput.value.trim();
+  if (!text) return;
+  sendChat(text);
+  el.chatInput.value = "";
+}
+
+function clearChatMessages() {
+  state.chat.previousChat = [...state.chat.messages];
+  state.chat.messages = [];
+  el.chatHistory.innerHTML = "";
+  syncChatAvailability();
+}
+
+function restorePreviousChat() {
+  if (!state.chat.previousChat.length) return;
+  el.chatHistory.innerHTML = "";
+  state.chat.messages = [];
+  state.chat.previousChat.forEach((msg) => addChatMessage(msg.text, msg.from, msg.meta));
+}
+
+async function exportChat() {
+  if (!state.chat.messages.length) return;
+  const text = state.chat.messages
+    .map((m) => `${m.from === "user" ? "Пользователь" : m.from === "bot" ? "Эксперт" : "Система"}: ${m.text}`)
+    .join("\n");
+  await navigator.clipboard.writeText(text);
+  showNotification("История скопирована", "success", 1500);
+}
+
+function restoreSelection(setId) {
+  const snapshot = state.chat.setHistory.find((s) => s.id === setId);
+  if (!snapshot) return;
+  state.assistant.selections = new Set(snapshot.ids);
   renderAssistantList();
-});
-elements.assistantStatus.addEventListener("change", (e) => {
-  state.assistant.filterStatus = e.target.value;
-  renderAssistantList();
-});
-
-elements.registryApply.addEventListener("click", () => {
-  state.registry.filters.domain = elements.registryDomain.value;
-  state.registry.filters.status = elements.registryStatus.value;
-  state.registry.filters.search = elements.registrySearch.value.trim();
-  state.registry.page = 1;
-  loadRegistry();
-});
-
-elements.registryPrev.addEventListener("click", () => {
-  if (state.registry.page > 1) {
-    state.registry.page -= 1;
-    loadRegistry();
-  }
-});
-
-elements.registryNext.addEventListener("click", () => {
-  const maxPage = Math.max(1, Math.ceil(state.registry.total / state.registry.pageSize));
-  if (state.registry.page < maxPage) {
-    state.registry.page += 1;
-    loadRegistry();
-  }
-});
-
-elements.createCardBtn.addEventListener("click", openCreateModal);
-elements.modalClose.addEventListener("click", closeCreateModal);
-elements.modalCancel.addEventListener("click", closeCreateModal);
-elements.modalOverlay.addEventListener("click", (e) => {
-  if (e.target === elements.modalOverlay) closeCreateModal();
-});
-elements.modalSave.addEventListener("click", saveCardFromModal);
+  renderSelectedChips();
+  syncChatAvailability();
+}
 
 function buildRegistryQuery() {
   const params = new URLSearchParams();
@@ -354,14 +602,14 @@ async function loadRegistry() {
 }
 
 function renderRegistry(items) {
-  elements.registryTableBody.innerHTML = "";
+  el.registryTableBody.innerHTML = "";
   if (!items.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
     cell.colSpan = 7;
     cell.textContent = "Нет данных";
     row.appendChild(cell);
-    elements.registryTableBody.appendChild(row);
+    el.registryTableBody.appendChild(row);
     return;
   }
 
@@ -369,209 +617,234 @@ function renderRegistry(items) {
     const row = document.createElement("tr");
     row.dataset.id = item.id;
     row.innerHTML = `
-      <td>${item.id}</td>
-      <td>${item.title}</td>
+      <td><input type="checkbox" /></td>
+      <td>${item.id}<div class="muted">uid-${item.id}</div></td>
+      <td>
+        <div class="title-cell">${item.title}</div>
+        <div class="progress"><div class="progress-bar" style="width: ${Math.min(100, (item.title?.length || 0) / 2)}%"></div></div>
+      </td>
+      <td>Тип</td>
+      <td>v1</td>
+      <td><span class="badge status-pill status-${STATUS_COLORS[item.status] || "grey"}">${statusLabel(item.status)}</span></td>
       <td>${item.domain.code}</td>
-      <td>${item.status}</td>
-      <td>${item.owner.name}</td>
-      <td>${item.source_count}</td>
+      <td>${item.owner.name}<br /><span class="muted">Ревьюер: —</span></td>
       <td>${item.last_event_at ? new Date(item.last_event_at).toLocaleDateString() : "—"}</td>
+      <td>—</td>
+      <td>${item.source_count}</td>
+      <td>0</td>
+      <td>0</td>
+      <td>—</td>
+      <td>0</td>
+      <td>—</td>
+      <td>⋮</td>
     `;
-    if (state.registry.highlightId === item.id) {
-      row.classList.add("just-created");
-      setTimeout(() => row.classList.remove("just-created"), 2500);
-      state.registry.highlightId = null;
-    }
-    row.addEventListener("click", () => {
-      switchTab("chat-view");
-      addCardsToAssistant([
+    row.addEventListener("click", (e) => {
+      if (e.target.tagName.toLowerCase() === "input") return;
+      addSearchBlock(item.title, [
         {
           id: item.id,
           title: item.title,
           status: item.status,
-          domain_name: item.domain.name,
-          domain_code: item.domain.code,
+          domain_id: item.domain.id,
+          description: item.description,
           updated_at: item.updated_at,
         },
       ]);
-      selectCard(item.id);
+      toggleSelection(item.id, true);
+      switchTab("chat-view");
     });
-    elements.registryTableBody.appendChild(row);
+    el.registryTableBody.appendChild(row);
   });
 }
 
 function updateRegistryPagination() {
-  elements.registryPage.textContent = state.registry.page;
+  el.registryPage.textContent = state.registry.page;
   const maxPage = Math.max(1, Math.ceil(state.registry.total / state.registry.pageSize));
-  elements.registryPrev.disabled = state.registry.page <= 1;
-  elements.registryNext.disabled = state.registry.page >= maxPage;
-}
-
-async function selectCard(cardId) {
-  state.activeCardId = cardId;
-  Array.from(document.querySelectorAll(".card-item")).forEach((el) => {
-    el.classList.toggle("active", Number(el.dataset?.id) === cardId);
-  });
-  await loadCardDetails(cardId);
-}
-
-async function loadCardDetails(cardId) {
-  try {
-    const res = await fetch(`${API_BASE}/cards/${cardId}/full`);
-    if (!res.ok) throw new Error("Не удалось загрузить карточку");
-    const data = await res.json();
-    renderCard(data);
-  } catch (err) {
-    showNotification(err.message || "Ошибка карточки");
-  }
-}
-
-function renderCard(data) {
-  elements.cardTitle.textContent = data.card.title;
-  const fields = {
-    domain: `${data.domain.code} — ${data.domain.name}`,
-    owner: data.owner.name,
-    status: data.card.status,
-    created: new Date(data.card.created_at).toLocaleString(),
-    updated: new Date(data.card.updated_at).toLocaleString(),
-  };
-  elements.cardMeta.querySelector('[data-field="domain"]').textContent = fields.domain;
-  elements.cardMeta.querySelector('[data-field="owner"]').textContent = fields.owner;
-  elements.cardMeta.querySelector('[data-field="status"]').textContent = fields.status;
-  elements.cardMeta.querySelector('[data-field="created"]').textContent = fields.created;
-  elements.cardMeta.querySelector('[data-field="updated"]').textContent = fields.updated;
-
-  elements.sourcesTableBody.innerHTML = "";
-  data.sources.forEach((src) => {
-    const row = document.createElement("tr");
-    const link = src.uri
-      ? `<a href="${src.uri}" target="_blank" rel="noopener noreferrer">${src.uri}</a>`
-      : "";
-    row.innerHTML = `
-      <td>${src.title}</td>
-      <td>${src.type}</td>
-      <td>${link}</td>
-    `;
-    elements.sourcesTableBody.appendChild(row);
-  });
-
-  elements.eventsList.innerHTML = "";
-  if (data.events && data.events.length) {
-    data.events.forEach((ev) => {
-      const item = document.createElement("div");
-      item.className = "badge";
-      item.textContent = `${new Date(ev.created_at).toLocaleString()} — ${ev.event_type}`;
-      elements.eventsList.appendChild(item);
-    });
-    elements.eventsBlock.classList.remove("hidden");
-  } else {
-    elements.eventsBlock.classList.add("hidden");
-  }
-}
-
-function addCardsToAssistant(cards) {
-  const existingIds = new Set(state.assistant.results.map((c) => c.id));
-  const merged = [...cards.filter((c) => !existingIds.has(c.id)), ...state.assistant.results];
-  state.assistant.results = merged;
-  renderAssistantList();
+  el.registryPrev.disabled = state.registry.page <= 1;
+  el.registryNext.disabled = state.registry.page >= maxPage;
 }
 
 function resetModalState() {
   [
-    elements.cardTitleInput,
-    elements.cardDescriptionInput,
-    elements.cardTagsInput,
-  ].forEach((el) => {
-    el.value = "";
-    el.classList.remove("invalid");
-  });
-  elements.cardDomainInput.value = "";
-  elements.cardOwnerInput.value = "";
-  elements.cardStatusInput.value = "draft";
+    el.cardTitleInput,
+    el.cardDescriptionInput,
+    el.cardTagsInput,
+    el.cardContentInput,
+  ].forEach((inp) => inp && (inp.value = ""));
+  if (el.cardDomainInput) el.cardDomainInput.value = "";
+  if (el.cardOwnerInput) el.cardOwnerInput.value = "";
+  if (el.cardStatusInput) el.cardStatusInput.value = "draft";
 }
 
 function openCreateModal() {
   resetModalState();
-  elements.modalOverlay.classList.remove("hidden");
+  el.modalOverlay.classList.remove("hidden");
 }
 
 function closeCreateModal() {
-  elements.modalOverlay.classList.add("hidden");
+  el.modalOverlay.classList.add("hidden");
 }
 
 function validateModalForm() {
   let valid = true;
-  const requiredFields = [
-    elements.cardTitleInput,
-    elements.cardDescriptionInput,
-    elements.cardDomainInput,
-    elements.cardOwnerInput,
-  ];
-  requiredFields.forEach((el) => {
-    const isEmpty = !el.value.trim();
-    el.classList.toggle("invalid", isEmpty);
-    if (isEmpty) valid = false;
+  const required = [el.cardTitleInput, el.cardContentInput || el.cardDescriptionInput];
+  required.forEach((el) => {
+    if (!el) return;
+    const empty = !el.value.trim();
+    el.classList.toggle("invalid", empty);
+    if (empty) valid = false;
   });
   return valid;
 }
 
 async function saveCardFromModal() {
   if (!validateModalForm()) {
-    showNotification("Заполните обязательные поля", "error", 2500);
+    showNotification("Заполните обязательные поля: заголовок и основной текст");
     return;
   }
 
   const payload = {
-    title: elements.cardTitleInput.value.trim(),
-    description: elements.cardDescriptionInput.value.trim(),
-    domain_id: Number(elements.cardDomainInput.value),
-    owner_id: Number(elements.cardOwnerInput.value),
-    status: elements.cardStatusInput.value,
+    title: el.cardTitleInput.value.trim(),
+    description: (el.cardDescriptionInput.value || "").trim(),
+    content: (el.cardContentInput?.value || el.cardDescriptionInput.value || "").trim(),
+    domain_id: el.cardDomainInput.value ? Number(el.cardDomainInput.value) : null,
+    owner_id: el.cardOwnerInput.value ? Number(el.cardOwnerInput.value) : null,
+    status: el.cardStatusInput.value || "draft",
   };
 
   try {
-    elements.modalSave.disabled = true;
+    el.modalSave.disabled = true;
     const res = await fetch(`${API_BASE}/cards/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("Не удалось создать карточку");
-    const created = await res.json();
+    await res.json();
     closeCreateModal();
-    state.registry.highlightId = created.id;
     await loadRegistry();
-    showNotification("Карточка создана", "success", 2500);
+    state.cardsCache = await fetchCards();
+    showNotification("Карточка создана", "success", 2000);
   } catch (err) {
-    showNotification(err.message || "Не удалось создать карточку, попробуйте ещё раз");
+    showNotification(err.message || "Ошибка создания карточки");
   } finally {
-    elements.modalSave.disabled = false;
+    el.modalSave.disabled = false;
   }
 }
 
-function addDefaultAssistantFromFeed() {
-  fetch(`${API_BASE}/cards/feed?page=1&page_size=10`)
-    .then((res) => (res.ok ? res.json() : null))
-    .then((data) => {
-      if (!data || !data.items) return;
-      const prepared = data.items.map((item) => ({
-        id: item.id,
-        title: item.title,
-        status: item.status,
-        domain_name: item.domain.name,
-        domain_code: item.domain.code,
-        updated_at: item.updated_at,
-      }));
-      state.assistant.results = prepared;
-      renderAssistantList();
-      if (prepared.length && !state.activeCardId) {
-        selectCard(prepared[0].id);
-      }
-    })
-    .catch(() => {});
+function attachModalExtras() {
+  el.modalBody = document.querySelector(".modal-body .form-grid");
+  if (!el.modalBody) return;
+  const contentField = document.createElement("label");
+  contentField.className = "full-width";
+  contentField.innerHTML = `Основной текст карточки<textarea id="card-content-input" rows="5"></textarea>`;
+  el.modalBody.appendChild(contentField);
+  el.cardContentInput = contentField.querySelector("textarea");
+
+  const questionsField = document.createElement("label");
+  questionsField.className = "full-width";
+  questionsField.innerHTML = `Краткие вопросы (по строкам)<textarea id="card-questions-input" rows="3"></textarea>`;
+  el.modalBody.appendChild(questionsField);
+  el.cardQuestionsInput = questionsField.querySelector("textarea");
 }
 
-async function aSyncInit() {
+function initEventHandlers() {
+  el.assistantSearch.addEventListener("click", handleAssistantSearch);
+  el.assistantQuery.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.ctrlKey) {
+      e.preventDefault();
+      handleAssistantSearch();
+    }
+  });
+  el.assistantDomain.addEventListener("change", (e) => {
+    state.assistant.filters.domain = e.target.value;
+    renderAssistantList();
+  });
+  el.assistantSort.addEventListener("change", (e) => {
+    state.assistant.filters.sort = e.target.value;
+    renderAssistantList();
+  });
+  el.statusFilters.forEach((chk) =>
+    chk.addEventListener("change", () => {
+      state.assistant.filters.statuses = new Set(
+        el.statusFilters.filter((c) => c.checked).map((c) => c.value)
+      );
+      renderAssistantList();
+    })
+  );
+  el.assistantClear.addEventListener("click", () => {
+    state.assistant.searchBlocks = [];
+    clearSelection();
+    renderAssistantList();
+    syncPrechatPrompt();
+  });
+  el.markAll.addEventListener("click", () => {
+    state.assistant.searchBlocks.forEach((block) => block.results.forEach((r) => state.assistant.selections.add(r.id)));
+    renderAssistantList();
+    renderSelectedChips();
+  });
+  el.unmarkAll.addEventListener("click", () => {
+    clearSelection();
+  });
+  el.onlySelected.addEventListener("click", () => handleVisibility("selected"));
+  el.onlyUnselected.addEventListener("click", () => handleVisibility("unselected"));
+  el.chooseRecommended.addEventListener("click", chooseRecommended);
+
+  el.prechatSend.addEventListener("click", handlePrechatStart);
+  el.prechatInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handlePrechatStart();
+    }
+  });
+  el.chatSend.addEventListener("click", handleChatSend);
+  el.chatInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleChatSend();
+    }
+  });
+
+  el.hideSourcesToggle.addEventListener("change", (e) => {
+    state.chat.hideSources = e.target.checked;
+  });
+  el.clearSelected.addEventListener("click", clearSelection);
+  el.clearChat.addEventListener("click", clearChatMessages);
+  el.restoreChat.addEventListener("click", restorePreviousChat);
+  el.exportChat.addEventListener("click", exportChat);
+
+  el.registryApply.addEventListener("click", () => {
+    state.registry.filters.domain = el.registryDomain.value;
+    state.registry.filters.status = el.registryStatus.value;
+    state.registry.filters.search = el.registrySearch.value.trim();
+    state.registry.page = 1;
+    loadRegistry();
+  });
+  el.registryPrev.addEventListener("click", () => {
+    if (state.registry.page > 1) {
+      state.registry.page -= 1;
+      loadRegistry();
+    }
+  });
+  el.registryNext.addEventListener("click", () => {
+    const maxPage = Math.max(1, Math.ceil(state.registry.total / state.registry.pageSize));
+    if (state.registry.page < maxPage) {
+      state.registry.page += 1;
+      loadRegistry();
+    }
+  });
+
+  el.createCardBtn.addEventListener("click", openCreateModal);
+  el.modalClose.addEventListener("click", closeCreateModal);
+  el.modalCancel.addEventListener("click", closeCreateModal);
+  el.modalOverlay.addEventListener("click", (e) => {
+    if (e.target === el.modalOverlay) closeCreateModal();
+  });
+  el.modalSave.addEventListener("click", saveCardFromModal);
+}
+
+async function init() {
+  attachModalExtras();
   try {
     state.domains = await fetchDomains();
     ensureAssistantOptions();
@@ -586,9 +859,16 @@ async function aSyncInit() {
     showNotification("Не удалось загрузить пользователей", "error", 3000);
   }
 
-  addDefaultAssistantFromFeed();
-
-  if (window.location.hash === "#registry") {
-    switchTab("registry-view");
+  try {
+    state.cardsCache = await fetchCards();
+  } catch (err) {
+    showNotification("Не удалось загрузить карточки", "error", 3000);
   }
+
+  initEventHandlers();
+  renderAssistantList();
+  renderSelectedChips();
+  syncChatAvailability();
 }
+
+init();
