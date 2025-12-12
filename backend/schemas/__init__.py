@@ -102,11 +102,12 @@ class SourceShort(BaseModel):
 
 
 class CardBase(BaseModel):
-    domain_id: int
+    domain_id: Optional[int] = None
     title: str
-    description: str
-    status: str
-    owner_id: int
+    description: Optional[str] = None
+    content: Optional[str] = None
+    status: Optional[str] = "draft"
+    owner_id: Optional[int] = None
 
 
 class CardCreate(CardBase):
@@ -117,6 +118,7 @@ class CardUpdate(BaseModel):
     domain_id: Optional[int] = None
     title: Optional[str] = None
     description: Optional[str] = None
+    content: Optional[str] = None
     status: Optional[str] = None
     owner_id: Optional[int] = None
 
@@ -218,6 +220,7 @@ class EventRead(EventBase):
 class ChatMockRequest(BaseModel):
     message: str
     card_id: Optional[int] = None
+    selected_card_ids: Optional[List[int]] = None
 
 
 class ChatUsedCard(BaseModel):

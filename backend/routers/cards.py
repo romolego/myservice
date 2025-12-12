@@ -108,7 +108,10 @@ def get_cards_feed(
 
 @router.post("/", response_model=schemas.CardRead, status_code=status.HTTP_201_CREATED)
 def create_card(card: schemas.CardCreate, db: Session = Depends(get_db)):
-    db_card = models.Card(**card.model_dump())
+    payload = card.model_dump()
+    if not payload.get("status"):
+        payload["status"] = "draft"
+    db_card = models.Card(**payload)
     db.add(db_card)
     db.commit()
     db.refresh(db_card)

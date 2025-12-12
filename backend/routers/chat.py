@@ -16,11 +16,22 @@ def mock_chat(payload: schemas.ChatMockRequest, db: Session = Depends(get_db)):
 
     cards: List[models.Card] = []
 
-    if keywords:
+    if payload.selected_card_ids:
+        cards = (
+            db.query(models.Card)
+            .join(models.Domain)
+            .filter(models.Card.id.in_(payload.selected_card_ids))
+            .all()
+        )
+    elif keywords:
         query = db.query(models.Card).join(models.Domain)
         patterns = [f"%{kw}%" for kw in keywords]
         conditions = [
-            or_(models.Card.title.ilike(pattern), models.Card.description.ilike(pattern))
+            or_(
+                models.Card.title.ilike(pattern),
+                models.Card.description.ilike(pattern),
+                models.Card.content.ilike(pattern),
+            )
             for pattern in patterns
         ]
         query = query.filter(or_(*conditions))

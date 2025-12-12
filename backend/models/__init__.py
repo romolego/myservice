@@ -52,11 +52,12 @@ class Card(Base):
     __tablename__ = "cards"
 
     id = Column(Integer, primary_key=True, index=True)
-    domain_id = Column(Integer, ForeignKey("domains.id"), nullable=False)
+    domain_id = Column(Integer, ForeignKey("domains.id"), nullable=True)
     title = Column(String, nullable=False)
-    description = Column(Text, nullable=False)
-    status = Column(String, nullable=False)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    description = Column(Text, nullable=True)
+    content = Column(Text, nullable=True)
+    status = Column(String, nullable=True, default="draft")
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
