@@ -17,38 +17,33 @@
 
     <main>
       <section id="chat-view" class="layout">
-        <div class="panel" id="filters-panel">
-          <h2>Фильтры</h2>
-          <div class="filters">
+        <div class="panel" id="assistant-panel">
+          <h2>Поисковый ассистент</h2>
+          <label class="full-width">
+            Поисковый запрос
+            <textarea id="assistant-query" rows="4" placeholder="Опишите, что ищете"></textarea>
+          </label>
+          <button id="assistant-search" class="primary">Подобрать карточки</button>
+
+          <div class="assistant-filters">
             <label>
               Домен
-              <select id="domain-filter">
+              <select id="assistant-domain-filter">
                 <option value="">Все домены</option>
               </select>
             </label>
             <label>
               Статус
-              <select id="status-filter">
+              <select id="assistant-status-filter">
                 <option value="">Все статусы</option>
                 <option value="draft">draft</option>
                 <option value="active">active</option>
                 <option value="archived">archived</option>
               </select>
             </label>
-            <label>
-              Поиск
-              <input id="search-filter" type="text" placeholder="заголовок или описание" />
-            </label>
-            <button id="apply-filters" class="primary">Обновить</button>
           </div>
 
-          <div class="cards-list" id="cards-list"></div>
-
-          <div class="pagination">
-            <button id="page-prev">‹</button>
-            <span id="page-info">1</span>
-            <button id="page-next">›</button>
-          </div>
+          <div class="cards-list" id="assistant-results"></div>
         </div>
 
         <div class="card-details">
@@ -81,7 +76,10 @@
           </div>
 
           <div class="panel chat-box">
-            <h2>Чат</h2>
+            <div class="chat-header">
+              <h2>Чат по выбранной карточке</h2>
+              <p class="muted">Сейчас чат работает в режиме имитации, ответы формируются на основе заголовков/описаний карточек.</p>
+            </div>
             <div class="chat-history" id="chat-history"></div>
             <div class="chat-input">
               <input id="chat-input" type="text" placeholder="Введите сообщение" />
@@ -93,7 +91,10 @@
 
       <section id="registry-view" class="hidden">
         <div class="panel">
-          <h2>Реестр карточек</h2>
+          <div class="registry-header">
+            <h2>Реестр карточек</h2>
+            <button id="create-card" class="primary">Создать карточку</button>
+          </div>
           <div class="registry-filters">
             <select id="registry-domain">
               <option value="">Все домены</option>
@@ -133,6 +134,55 @@
     </main>
 
     <div id="notification-container"></div>
+
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Создание карточки</h3>
+          <button id="modal-close" class="link-button">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <label>
+              Заголовок
+              <input type="text" id="card-title-input" />
+            </label>
+            <label>
+              Домен
+              <select id="card-domain-input">
+                <option value="">Выберите домен</option>
+              </select>
+            </label>
+            <label>
+              Владелец
+              <select id="card-owner-input">
+                <option value="">Выберите владельца</option>
+              </select>
+            </label>
+            <label>
+              Статус
+              <select id="card-status-input">
+                <option value="draft">draft</option>
+                <option value="active">active</option>
+                <option value="archived">archived</option>
+              </select>
+            </label>
+            <label class="full-width">
+              Описание / аннотация
+              <textarea id="card-description-input" rows="4"></textarea>
+            </label>
+            <label class="full-width">
+              Теги / ключевые слова
+              <input type="text" id="card-tags-input" placeholder="через запятую (TODO)" />
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="modal-cancel" class="link-button">Отмена</button>
+          <button id="modal-save" class="primary">Сохранить</button>
+        </div>
+      </div>
+    </div>
 
     <script src="workbench.js"></script>
   </body>
