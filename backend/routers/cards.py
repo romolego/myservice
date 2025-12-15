@@ -28,7 +28,8 @@ def get_cards_feed(
         .join(models.Domain)
         .join(models.User)
         .outerjoin(models.CardSource)
-        .outerjoin(models.Event)
+        # Explicit join condition to avoid AmbiguousForeignKeysError
+        .outerjoin(models.Event, models.Event.card_id == models.Card.id)
     )
 
     if domain_id is not None:

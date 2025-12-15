@@ -45,7 +45,12 @@ class Source(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     domain = relationship("Domain", back_populates="sources")
-    cards = relationship("Card", secondary="cardsources", back_populates="sources")
+    cards = relationship(
+        "Card",
+        secondary="cardsources",
+        back_populates="sources",
+        overlaps="card_sources",
+    )
 
 
 class Card(Base):
@@ -63,7 +68,12 @@ class Card(Base):
     domain = relationship("Domain", back_populates="cards")
     owner = relationship("User", back_populates="cards")
     events = relationship("Event", back_populates="card", cascade="all, delete-orphan")
-    sources = relationship("Source", secondary="cardsources", back_populates="cards")
+    sources = relationship(
+        "Source",
+        secondary="cardsources",
+        back_populates="cards",
+        overlaps="card_sources",
+    )
 
 
 class Expert(Base):
