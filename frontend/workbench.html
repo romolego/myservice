@@ -96,6 +96,58 @@
         </div>
 
         <div class="card-details">
+          <div class="panel card-detail-panel" id="card-detail-panel">
+            <div class="card-detail-header">
+              <div>
+                <p class="muted">Карточка экспертизы</p>
+                <h2 id="detail-title">Выберите карточку из подборки</h2>
+                <div id="detail-subtitle" class="detail-subtitle">Чтобы увидеть подробности, отметьте карточку слева</div>
+                <div id="detail-tags" class="detail-tags"></div>
+              </div>
+              <div id="detail-status" class="detail-status"></div>
+            </div>
+
+            <div class="detail-snapshot">
+              <div id="detail-meta" class="detail-meta-grid muted">
+                <div class="meta-placeholder">Данные станут доступны после выбора карточки.</div>
+              </div>
+              <div id="detail-stats" class="detail-stats"></div>
+            </div>
+
+            <div class="detail-section">
+              <div class="detail-section-header">
+                <h3>Основной текст</h3>
+                <span class="badge" id="detail-updated">—</span>
+              </div>
+              <div id="detail-content" class="detail-text muted">Нет активной карточки</div>
+            </div>
+
+            <div class="detail-section" id="detail-highlights">
+              <div class="detail-section-header">
+                <h4>Ключевые фрагменты</h4>
+                <span class="badge">авторазбиение по абзацам</span>
+              </div>
+              <div class="highlight-grid muted">Появится после выбора карточки</div>
+            </div>
+
+            <div class="detail-section two-column">
+              <div>
+                <div class="detail-section-header">
+                  <h4>Источники</h4>
+                  <span class="badge" id="detail-sources-count">0</span>
+                </div>
+                <div id="detail-sources" class="detail-cards muted">Нет данных</div>
+              </div>
+              <div>
+                <div class="detail-section-header">
+                  <h4>Журнал событий</h4>
+                  <span class="badge" id="detail-events-count">0</span>
+                </div>
+                <div id="detail-events" class="detail-cards muted">Нет данных</div>
+              </div>
+            </div>
+          </div>
+
           <div class="panel chat-panel">
             <div class="chat-header">
               <div>
