@@ -67,8 +67,9 @@ main {
 
 .layout {
   display: grid;
-  grid-template-columns: 36% 64%;
+  grid-template-columns: minmax(520px, 1.6fr) minmax(420px, 1fr);
   gap: 14px;
+  align-items: start;
 }
 
 .panel {
@@ -211,7 +212,7 @@ button.primary:disabled {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 70vh;
+  max-height: calc(100vh - 320px);
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -453,6 +454,47 @@ button.primary:disabled {
   gap: 8px;
 }
 
+.chat-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.info-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: #f9fbff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.info-card-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.info-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--subtext);
+  font-size: 12px;
+}
+
+.status-label {
+  font-weight: 600;
+  margin: 0;
+}
+
+.status-label.positive {
+  color: #2fb344;
+}
+
 .chat-header {
   margin-bottom: 4px;
 }
@@ -464,6 +506,10 @@ button.primary:disabled {
 .muted {
   color: var(--subtext);
   margin: 0;
+  font-size: 12px;
+}
+
+.small {
   font-size: 12px;
 }
 
@@ -524,6 +570,62 @@ button.primary:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.selected-list-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.selected-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.selected-count {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.selected-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selected-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  background: #f8fafc;
+}
+
+.selected-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selected-row-title {
+  font-weight: 600;
+}
+
+.selected-row-meta {
+  color: var(--subtext);
+  font-size: 12px;
 }
 
 .chip {

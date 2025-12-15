@@ -109,7 +109,60 @@
               </div>
             </div>
 
+            <div class="chat-info-grid">
+              <div class="info-card" id="chat-source-card">
+                <div class="info-card-title">Набор источников</div>
+                <div class="info-card-content">
+                  <p id="chat-source-status" class="status-label">Текущий набор источников пуст</p>
+                  <p class="muted small">Добавьте карточки слева — они станут основой для эксперта в чате.</p>
+                </div>
+              </div>
+
+              <div class="info-card">
+                <div class="info-card-title">Задача чата</div>
+                <div class="info-card-content">
+                  <p class="muted small">
+                    Эксперт должен ответить на вопрос пользователя, опираясь только на выбранные источники и
+                    объясняя уверенность в каждом фрагменте ответа.
+                  </p>
+                </div>
+              </div>
+
+              <div class="info-card">
+                <div class="info-card-title">Моделирование поведения</div>
+                <div class="info-card-content">
+                  <p class="muted small">Представь себя экспертом, который знает только добавленные источники.</p>
+                  <ul class="info-list">
+                    <li>Если в источниках нет ответа — честно говори об этом.</li>
+                    <li>Если ответ неполный — дай то, что есть, и уточни, что информации недостаточно.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="info-card">
+                <div class="info-card-title">Правила безопасности</div>
+                <div class="info-card-content">
+                  <ul class="info-list">
+                    <li>Ссылайся только на выбранные карточки.</li>
+                    <li>Не выдумывай факты и не скрывай неизвестность.</li>
+                    <li>Оценивай достоверность данных и указывай уверенность.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             <div class="selected-chips" id="selected-chips"></div>
+
+            <div class="selected-list-panel">
+              <div class="selected-list-header">
+                <div>
+                  <h3>Набор карточек</h3>
+                  <p class="muted small">Список источников, которые попадут в контекст эксперта</p>
+                </div>
+                <div class="selected-count" id="selected-count-label">0</div>
+              </div>
+              <div class="selected-list" id="selected-list"></div>
+            </div>
             <div class="chat-toolbar">
               <div class="chat-set-info" id="chat-set-info">Текущий набор источников: 0</div>
               <div class="chat-buttons">
