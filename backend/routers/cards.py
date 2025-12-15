@@ -10,19 +10,7 @@ from ..db import get_db
 router = APIRouter(prefix="/cards", tags=["cards"])
 
 
-@router.get("/", response_model=List[schemas.CardRead])
-def list_cards(db: Session = Depends(get_db)):
-    return db.query(models.Card).all()
-
-
-@router.get("/{card_id}", response_model=schemas.CardRead)
-def get_card(card_id: int, db: Session = Depends(get_db)):
-    card = db.get(models.Card, card_id)
-    if not card:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
-    return card
-
-
+# Static routes are registered before dynamic `/{card_id}` to avoid matching conflicts.
 @router.get("/feed", response_model=schemas.CardFeedResponse, tags=["cards_scenarios"])
 def get_cards_feed(
     domain_id: Optional[int] = None,
@@ -106,6 +94,42 @@ def get_cards_feed(
     return schemas.CardFeedResponse(items=items, total=total or 0, page=page, page_size=page_size)
 
 
+@router.get("/{card_id}/full", response_model=schemas.CardFull, tags=["cards_scenarios"])
+def get_full_card(card_id: int, db: Session = Depends(get_db)):
+    card = db.get(models.Card, card_id)
+    if not card:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+
+    events = (
+        db.query(models.Event)
+        .filter(models.Event.card_id == card_id)
+        .order_by(models.Event.created_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    return schemas.CardFull(
+        card=schemas.CardRead.model_validate(card),
+        domain=schemas.DomainShort.model_validate(card.domain),
+        owner=schemas.UserShort.model_validate(card.owner),
+        sources=[schemas.SourceShort.model_validate(source) for source in card.sources],
+        events=[schemas.EventShort.model_validate(event) for event in events],
+    )
+
+
+@router.get("/", response_model=List[schemas.CardRead])
+def list_cards(db: Session = Depends(get_db)):
+    return db.query(models.Card).all()
+
+
+@router.get("/{card_id}", response_model=schemas.CardRead)
+def get_card(card_id: int, db: Session = Depends(get_db)):
+    card = db.get(models.Card, card_id)
+    if not card:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+    return card
+
+
 @router.post("/", response_model=schemas.CardRead, status_code=status.HTTP_201_CREATED)
 def create_card(card: schemas.CardCreate, db: Session = Depends(get_db)):
     db_card = models.Card(**card.model_dump())
@@ -139,26 +163,3 @@ def delete_card(card_id: int, db: Session = Depends(get_db)):
     db.delete(db_card)
     db.commit()
     return result
-
-
-@router.get("/{card_id}/full", response_model=schemas.CardFull, tags=["cards_scenarios"])
-def get_full_card(card_id: int, db: Session = Depends(get_db)):
-    card = db.get(models.Card, card_id)
-    if not card:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
-
-    events = (
-        db.query(models.Event)
-        .filter(models.Event.card_id == card_id)
-        .order_by(models.Event.created_at.desc())
-        .limit(20)
-        .all()
-    )
-
-    return schemas.CardFull(
-        card=schemas.CardRead.model_validate(card),
-        domain=schemas.DomainShort.model_validate(card.domain),
-        owner=schemas.UserShort.model_validate(card.owner),
-        sources=[schemas.SourceShort.model_validate(source) for source in card.sources],
-        events=[schemas.EventShort.model_validate(event) for event in events],
-    )
