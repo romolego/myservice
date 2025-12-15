@@ -589,6 +589,30 @@ button.primary:disabled {
   margin-bottom: 12px;
 }
 
+.view-toggle {
+  display: inline-flex;
+  background: var(--muted);
+  border-radius: 999px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  gap: 4px;
+}
+
+.view-toggle .toggle {
+  border: none;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--subtext);
+}
+
+.view-toggle .toggle.active {
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
 .registry-table {
   width: 100%;
   border-collapse: collapse;
@@ -605,6 +629,61 @@ button.primary:disabled {
 .registry-table tr:hover {
   background: #f8fafc;
   cursor: pointer;
+}
+
+.compact-list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.compact-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+}
+
+.compact-card .title-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.compact-card .title-line h4 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.compact-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--subtext);
+}
+
+.compact-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  gap: 8px;
+}
+
+.progress {
+  background: var(--muted);
+  border-radius: 6px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  background: var(--accent);
+  height: 100%;
 }
 
 .notification {

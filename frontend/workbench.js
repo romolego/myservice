@@ -37,10 +37,17 @@ const state = {
     page: 1,
     pageSize: 10,
     total: 0,
+    view: "table",
+    selected: new Set(),
     filters: {
       domain: "",
       status: "",
       search: "",
+      owner: "",
+      reviewer: "",
+      onlyMine: false,
+      verifiedFrom: "",
+      sort: "updated",
     },
   },
 };
@@ -89,6 +96,14 @@ const el = {
   registryStatus: document.getElementById("registry-status"),
   registrySearch: document.getElementById("registry-search"),
   registryApply: document.getElementById("registry-apply"),
+  registryPageSize: document.getElementById("registry-page-size"),
+  registryOwner: document.getElementById("registry-owner"),
+  registryReviewer: document.getElementById("registry-reviewer"),
+  registryVerifiedFrom: document.getElementById("registry-verified-from"),
+  registryOnlyMine: document.getElementById("registry-only-mine"),
+  registrySort: document.getElementById("registry-sort"),
+  registryViewTable: document.getElementById("registry-view-table"),
+  registryViewCompact: document.getElementById("registry-view-compact"),
 
   notificationContainer: document.getElementById("notification-container"),
   modalOverlay: document.getElementById("modal-overlay"),
@@ -589,71 +604,208 @@ function buildRegistryQuery() {
 
 async function loadRegistry() {
   try {
-    const query = buildRegistryQuery();
-    const res = await fetch(`${API_BASE}/cards/feed?${query}`);
-    if (!res.ok) throw new Error("Ошибка загрузки реестра");
-    const data = await res.json();
-    state.registry.total = data.total;
-    renderRegistry(data.items);
+    if (!state.cardsCache.length) {
+      state.cardsCache = await fetchCards();
+    }
+
+    const filtered = applyRegistryFilters(state.cardsCache);
+    const sorted = sortRegistry(filtered);
+    state.registry.total = sorted.length;
+    const paginated = paginateRegistry(sorted);
+    renderRegistry(paginated);
     updateRegistryPagination();
   } catch (err) {
     showNotification(err.message || "Ошибка реестра");
   }
 }
 
+function getCurrentUserId() {
+  return state.users?.[0]?.id || null;
+}
+
+function matchesSearch(item, text) {
+  if (!text) return true;
+  const haystack = [item.title, item.description, item.tags, item.domain?.code, item.owner?.name, item.owner_name]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(text.toLowerCase());
+}
+
+function applyRegistryFilters(items) {
+  const { domain, status, search, owner, reviewer, onlyMine, verifiedFrom } = state.registry.filters;
+  const fromDate = verifiedFrom ? new Date(verifiedFrom) : null;
+  const currentUserId = getCurrentUserId();
+
+  return items.filter((item) => {
+    if (domain && String(item.domain_id || item.domain?.id || "") !== domain) return false;
+    if (status && item.status !== status) return false;
+    if (search && !matchesSearch(item, search)) return false;
+    if (owner && !(item.owner?.name || item.owner_name || "").toLowerCase().includes(owner.toLowerCase())) return false;
+    if (reviewer && !(item.reviewer?.name || item.reviewer_name || "").toLowerCase().includes(reviewer.toLowerCase()))
+      return false;
+    if (onlyMine && currentUserId && item.owner_id !== currentUserId) return false;
+    if (fromDate) {
+      const updatedAt = item.updated_at || item.last_event_at;
+      if (!updatedAt || new Date(updatedAt) < fromDate) return false;
+    }
+    return true;
+  });
+}
+
+function sortRegistry(items) {
+  const sorted = [...items];
+  if (state.registry.filters.sort === "title") {
+    sorted.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+  } else {
+    sorted.sort((a, b) => new Date(b.updated_at || b.last_event_at || 0) - new Date(a.updated_at || a.last_event_at || 0));
+  }
+  return sorted;
+}
+
+function paginateRegistry(items) {
+  const start = (state.registry.page - 1) * state.registry.pageSize;
+  return items.slice(start, start + state.registry.pageSize);
+}
+
+function handleRegistrySelect(id, checked) {
+  if (checked) {
+    state.registry.selected.add(id);
+  } else {
+    state.registry.selected.delete(id);
+  }
+}
+
 function renderRegistry(items) {
+  const isTable = state.registry.view === "table";
+  el.registryTableBody.parentElement.classList.toggle("hidden", !isTable);
   el.registryTableBody.innerHTML = "";
+
+  const compactHostId = "registry-compact";
+  let compactHost = document.getElementById(compactHostId);
+  if (!compactHost) {
+    compactHost = document.createElement("div");
+    compactHost.id = compactHostId;
+    el.registryTableBody.parentElement.parentElement.appendChild(compactHost);
+  }
+  compactHost.className = isTable ? "hidden" : "compact-list";
+  compactHost.innerHTML = "";
+
   if (!items.length) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 7;
-    cell.textContent = "Нет данных";
-    row.appendChild(cell);
-    el.registryTableBody.appendChild(row);
+    if (isTable) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 16;
+      cell.textContent = "Нет данных";
+      row.appendChild(cell);
+      el.registryTableBody.appendChild(row);
+    } else {
+      const empty = document.createElement("div");
+      empty.className = "muted";
+      empty.textContent = "Нет карточек по текущим фильтрам";
+      compactHost.appendChild(empty);
+    }
     return;
   }
 
   items.forEach((item) => {
-    const row = document.createElement("tr");
-    row.dataset.id = item.id;
-    row.innerHTML = `
-      <td><input type="checkbox" /></td>
-      <td>${item.id}<div class="muted">uid-${item.id}</div></td>
-      <td>
-        <div class="title-cell">${item.title}</div>
-        <div class="progress"><div class="progress-bar" style="width: ${Math.min(100, (item.title?.length || 0) / 2)}%"></div></div>
-      </td>
-      <td>Тип</td>
-      <td>v1</td>
-      <td><span class="badge status-pill status-${STATUS_COLORS[item.status] || "grey"}">${statusLabel(item.status)}</span></td>
-      <td>${item.domain.code}</td>
-      <td>${item.owner.name}<br /><span class="muted">Ревьюер: —</span></td>
-      <td>${item.last_event_at ? new Date(item.last_event_at).toLocaleDateString() : "—"}</td>
-      <td>—</td>
-      <td>${item.source_count}</td>
-      <td>0</td>
-      <td>0</td>
-      <td>—</td>
-      <td>0</td>
-      <td>—</td>
-      <td>⋮</td>
-    `;
-    row.addEventListener("click", (e) => {
-      if (e.target.tagName.toLowerCase() === "input") return;
-      addSearchBlock(item.title, [
-        {
-          id: item.id,
-          title: item.title,
-          status: item.status,
-          domain_id: item.domain.id,
-          description: item.description,
-          updated_at: item.updated_at,
-        },
-      ]);
-      toggleSelection(item.id, true);
-      switchTab("chat-view");
-    });
-    el.registryTableBody.appendChild(row);
+    const ownerName = item.owner?.name || item.owner_name || "—";
+    const reviewerName = item.reviewer?.name || item.reviewer_name || "—";
+    const domainCode = item.domain?.code || item.domain_code || "—";
+    const updated = item.updated_at || item.last_event_at;
+    const updatedLabel = updated ? new Date(updated).toLocaleDateString() : "—";
+    const statusColor = STATUS_COLORS[item.status] || "grey";
+    const progressWidth = Math.min(100, (item.title?.length || 0) / 2);
+
+    if (isTable) {
+      const row = document.createElement("tr");
+      row.dataset.id = item.id;
+      row.innerHTML = `
+        <td><input type="checkbox" data-registry-select="${item.id}" ${
+          state.registry.selected.has(item.id) ? "checked" : ""
+        } /></td>
+        <td>${item.id}<div class="muted">uid-${item.id}</div></td>
+        <td>
+          <div class="title-cell">${item.title || "Без названия"}</div>
+          <div class="progress"><div class="progress-bar" style="width: ${progressWidth}%"></div></div>
+        </td>
+        <td>Документ</td>
+        <td>${item.version || "v1"}</td>
+        <td><span class="badge status-pill status-${statusColor}">${statusLabel(item.status)}</span></td>
+        <td>${domainCode}</td>
+        <td>${ownerName}<br /><span class="muted">Ревьюер: ${reviewerName}</span></td>
+        <td>${updatedLabel}</td>
+        <td>—</td>
+        <td>${item.source_count ?? "—"}</td>
+        <td>${item.likes ?? 0}</td>
+        <td>${item.bookmarks ?? 0}</td>
+        <td>${item.confidentiality || "—"}</td>
+        <td>${item.links_count ?? 0}</td>
+        <td>${item.in_expert ?? "—"}</td>
+        <td>⋮</td>
+      `;
+      row.addEventListener("click", (e) => {
+        if (e.target.tagName.toLowerCase() === "input") return;
+        addSearchBlock(item.title, [
+          {
+            id: item.id,
+            title: item.title,
+            status: item.status,
+            domain_id: item.domain_id || item.domain?.id,
+            description: item.description,
+            updated_at: item.updated_at,
+          },
+        ]);
+        toggleSelection(item.id, true);
+        switchTab("chat-view");
+      });
+      row.querySelector("input[type='checkbox']")?.addEventListener("change", (e) => {
+        handleRegistrySelect(item.id, e.target.checked);
+        e.stopPropagation();
+      });
+      el.registryTableBody.appendChild(row);
+    } else {
+      const card = document.createElement("div");
+      card.className = "compact-card";
+      card.innerHTML = `
+        <div class="title-line">
+          <h4>${item.title || "Без названия"}</h4>
+          <span class="badge status-pill status-${statusColor}">${statusLabel(item.status)}</span>
+        </div>
+        <div class="compact-meta">
+          <span>${domainCode}</span>
+          <span>Обновлено: ${updatedLabel}</span>
+          <span>Владелец: ${ownerName}</span>
+          <span>Ревьюер: ${reviewerName}</span>
+        </div>
+        <div class="muted">${item.description || item.summary || "—"}</div>
+        <div class="compact-actions">
+          <label class="filter-chip"><input type="checkbox" data-registry-select="${item.id}" ${
+            state.registry.selected.has(item.id) ? "checked" : ""
+          } /> В подборку</label>
+          <button class="link-button" data-open="${item.id}">Открыть в чате</button>
+        </div>
+      `;
+      card.querySelector("[data-open]")?.addEventListener("click", () => {
+        addSearchBlock(item.title, [
+          {
+            id: item.id,
+            title: item.title,
+            status: item.status,
+            domain_id: item.domain_id || item.domain?.id,
+            description: item.description,
+            updated_at: item.updated_at,
+          },
+        ]);
+        toggleSelection(item.id, true);
+        switchTab("chat-view");
+      });
+      card.querySelector("input[type='checkbox']")?.addEventListener("change", (e) => {
+        handleRegistrySelect(item.id, e.target.checked);
+        e.stopPropagation();
+      });
+      compactHost.appendChild(card);
+    }
   });
 }
 
@@ -817,6 +969,22 @@ function initEventHandlers() {
     state.registry.filters.domain = el.registryDomain.value;
     state.registry.filters.status = el.registryStatus.value;
     state.registry.filters.search = el.registrySearch.value.trim();
+    state.registry.filters.owner = el.registryOwner.value.trim();
+    state.registry.filters.reviewer = el.registryReviewer.value.trim();
+    state.registry.filters.onlyMine = el.registryOnlyMine.checked;
+    state.registry.filters.verifiedFrom = el.registryVerifiedFrom.value;
+    state.registry.filters.sort = el.registrySort.value;
+    state.registry.page = 1;
+    loadRegistry();
+  });
+  el.registrySearch.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      el.registryApply.click();
+    }
+  });
+  el.registryPageSize.addEventListener("change", (e) => {
+    state.registry.pageSize = Number(e.target.value) || 10;
     state.registry.page = 1;
     loadRegistry();
   });
@@ -832,6 +1000,19 @@ function initEventHandlers() {
       state.registry.page += 1;
       loadRegistry();
     }
+  });
+
+  el.registryViewTable.addEventListener("click", () => {
+    state.registry.view = "table";
+    el.registryViewTable.classList.add("active");
+    el.registryViewCompact.classList.remove("active");
+    loadRegistry();
+  });
+  el.registryViewCompact.addEventListener("click", () => {
+    state.registry.view = "compact";
+    el.registryViewCompact.classList.add("active");
+    el.registryViewTable.classList.remove("active");
+    loadRegistry();
   });
 
   el.createCardBtn.addEventListener("click", openCreateModal);
