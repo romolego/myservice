@@ -71,6 +71,7 @@ const el = {
   chatSetInfo: document.getElementById("chat-set-info"),
   chatHistory: document.getElementById("chat-history"),
   chatBlocker: document.getElementById("chat-blocker"),
+  chatSourceStatus: document.getElementById("chat-source-status"),
   prechatComposer: document.getElementById("prechat-composer"),
   prechatInput: document.getElementById("prechat-input"),
   prechatSend: document.getElementById("prechat-send"),
@@ -82,6 +83,8 @@ const el = {
   clearChat: document.getElementById("clear-chat"),
   restoreChat: document.getElementById("restore-chat"),
   exportChat: document.getElementById("export-chat"),
+  selectedList: document.getElementById("selected-list"),
+  selectedCountLabel: document.getElementById("selected-count-label"),
 
   tabChat: document.getElementById("tab-chat"),
   tabRegistry: document.getElementById("tab-registry"),
@@ -369,6 +372,48 @@ function renderSelectedChips() {
   });
 
   el.chatSetInfo.textContent = `Текущий набор источников: ${ids.length}`;
+  updateChatInfo(ids);
+}
+
+function updateChatInfo(ids) {
+  const count = ids.length;
+  if (el.chatSourceStatus) {
+    el.chatSourceStatus.textContent = count
+      ? `Текущий набор источников не пуст (${count} ${count === 1 ? "карточка" : "карточек"})`
+      : "Текущий набор источников пуст";
+    el.chatSourceStatus.classList.toggle("positive", !!count);
+  }
+
+  if (!el.selectedList) return;
+  el.selectedList.innerHTML = "";
+  el.selectedCountLabel.textContent = count;
+
+  if (!count) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "Ничего не выбрано";
+    el.selectedList.appendChild(empty);
+    return;
+  }
+
+  ids
+    .map((id) => state.cardsCache.find((c) => c.id === id) || { id, title: `Карточка ${id}`, status: "grey" })
+    .forEach((card) => {
+      const item = document.createElement("div");
+      item.className = "selected-row";
+      item.innerHTML = `
+        <div class="selected-row-main">
+          ${colorDot(card.status)}
+          <div>
+            <div class="selected-row-title">${card.title}</div>
+            <div class="selected-row-meta">ID ${card.id} · ${statusLabel(card.status)}</div>
+          </div>
+        </div>
+        <button class="link-button" data-remove="${card.id}">Убрать</button>
+      `;
+      item.querySelector("button").addEventListener("click", () => toggleSelection(card.id, false));
+      el.selectedList.appendChild(item);
+    });
 }
 
 function clearSelection() {
