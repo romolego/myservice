@@ -33,6 +33,12 @@ const state = {
     hideSources: false,
     previousChat: [],
   },
+  detail: {
+    currentId: null,
+    data: null,
+    loading: false,
+    error: null,
+  },
   registry: {
     page: 1,
     pageSize: 10,
@@ -123,6 +129,20 @@ const el = {
   cardQuestionsInput: null,
   createCardBtn: document.getElementById("create-card"),
   modalBody: null,
+
+  detailTitle: document.getElementById("detail-title"),
+  detailSubtitle: document.getElementById("detail-subtitle"),
+  detailStatus: document.getElementById("detail-status"),
+  detailMeta: document.getElementById("detail-meta"),
+  detailTags: document.getElementById("detail-tags"),
+  detailStats: document.getElementById("detail-stats"),
+  detailHighlights: document.getElementById("detail-highlights"),
+  detailContent: document.getElementById("detail-content"),
+  detailUpdated: document.getElementById("detail-updated"),
+  detailSources: document.getElementById("detail-sources"),
+  detailEvents: document.getElementById("detail-events"),
+  detailSourcesCount: document.getElementById("detail-sources-count"),
+  detailEventsCount: document.getElementById("detail-events-count"),
 };
 
 function showNotification(message, type = "error", timeout = 4000) {
@@ -200,6 +220,75 @@ function statusLabel(status) {
   if (!status) return "—";
   const map = { green: "актуально", active: "активно", yellow: "требует ревизии", red: "критично", grey: "черновик" };
   return map[status] || status;
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function metaItem(label, value) {
+  return `<div class="meta-item"><div class="meta-label">${label}</div><div class="meta-value">${value}</div></div>`;
+}
+
+function renderTagPills(tags) {
+  if (!el.detailTags) return;
+  const pills = tags
+    .map((tag) => tag && tag.trim())
+    .filter(Boolean)
+    .map((tag) => `<span class="tag">${tag}</span>`)
+    .join("");
+  el.detailTags.innerHTML = pills || '<span class="muted">Теги не указаны</span>';
+}
+
+function renderStatCards(items) {
+  if (!el.detailStats) return;
+  if (!items || !items.length) {
+    el.detailStats.innerHTML = '<div class="muted">Метрики появятся после выбора карточки</div>';
+    return;
+  }
+  el.detailStats.innerHTML = items
+    .map(
+      (stat) => `
+        <div class="stat-card">
+          <div class="stat-label">${stat.label}</div>
+          <div class="stat-value">${stat.value}</div>
+          <div class="stat-hint">${stat.hint || ""}</div>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function renderHighlights(text) {
+  if (!el.detailHighlights) return;
+  const host = el.detailHighlights.querySelector(".highlight-grid");
+  if (!host) return;
+  const raw = (text || "").trim();
+  if (!raw) {
+    host.innerHTML = '<div class="muted">Фрагменты появятся после выбора карточки</div>';
+    return;
+  }
+  const chunks = raw
+    .split(/\n{2,}/)
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .slice(0, 6);
+  if (!chunks.length) {
+    host.innerHTML = '<div class="muted">Нечего разбить на ключевые блоки</div>';
+    return;
+  }
+  host.innerHTML = chunks
+    .map(
+      (chunk, idx) => `
+        <div class="highlight-card">
+          <h5>Фрагмент ${idx + 1}</h5>
+          <p>${chunk}</p>
+        </div>
+      `
+    )
+    .join("");
 }
 
 function computeScore(card, queryTerms) {
@@ -345,6 +434,7 @@ function toggleSelection(id, checked) {
   updateSelectionSummary();
   renderAssistantList();
   renderSelectedChips();
+  syncCardDetail();
 }
 
 function updateSelectionSummary() {
@@ -420,6 +510,7 @@ function clearSelection() {
   state.assistant.selections.clear();
   renderAssistantList();
   renderSelectedChips();
+  syncCardDetail();
 }
 
 function handleVisibility(mode) {
@@ -438,6 +529,165 @@ function chooseRecommended() {
   sorted.slice(0, 3).forEach((item) => state.assistant.selections.add(item.id));
   renderAssistantList();
   renderSelectedChips();
+  syncCardDetail();
+}
+
+function renderCardDetail() {
+  const { currentId, data, loading, error } = state.detail;
+  if (!el.detailTitle) return;
+
+  if (!currentId) {
+    el.detailTitle.textContent = "Выберите карточку из подборки";
+    el.detailSubtitle.textContent = "Чтобы увидеть подробности, отметьте карточку слева";
+    el.detailStatus.innerHTML = "";
+    el.detailMeta.innerHTML = '<div class="meta-placeholder muted">Данные станут доступны после выбора карточки.</div>';
+    if (el.detailTags) el.detailTags.innerHTML = "";
+    renderStatCards([]);
+    el.detailContent.textContent = "Нет активной карточки";
+    el.detailUpdated.textContent = "—";
+    renderHighlights("");
+    el.detailSources.textContent = "Нет данных";
+    el.detailEvents.textContent = "Нет данных";
+    el.detailSourcesCount.textContent = "0";
+    el.detailEventsCount.textContent = "0";
+    return;
+  }
+
+  if (loading) {
+    el.detailTitle.textContent = "Загружаем карточку…";
+    el.detailSubtitle.textContent = "Подождите, получаем подробности карточки";
+    el.detailStatus.innerHTML = "";
+    el.detailMeta.innerHTML = '<div class="meta-placeholder muted">Загрузка…</div>';
+    renderStatCards([]);
+    renderHighlights("");
+    el.detailContent.textContent = "";
+    el.detailUpdated.textContent = "—";
+    return;
+  }
+
+  if (error) {
+    el.detailTitle.textContent = "Не удалось загрузить карточку";
+    el.detailSubtitle.textContent = error;
+    el.detailStatus.innerHTML = "";
+    el.detailMeta.innerHTML = '<div class="meta-placeholder muted">Повторите попытку позже.</div>';
+    renderStatCards([]);
+    renderHighlights("");
+    el.detailContent.textContent = "";
+    el.detailUpdated.textContent = "—";
+    el.detailSources.textContent = "—";
+    el.detailEvents.textContent = "—";
+    return;
+  }
+
+  const card = data?.card || {};
+  const domain = data?.domain;
+  const owner = data?.owner;
+  el.detailTitle.textContent = card.title || `Карточка ${currentId}`;
+  el.detailSubtitle.textContent = card.description || "Описание отсутствует";
+  el.detailStatus.innerHTML = `${colorDot(card.status)} <span class="status-pill status-${
+    STATUS_COLORS[card.status] || "grey"
+  }">${statusLabel(card.status)}</span>`;
+
+  const tagList = [];
+  if (card.tags) tagList.push(...card.tags.split(","));
+  if (domain?.code) tagList.push(domain.code);
+  if (owner?.name) tagList.push(owner.name);
+  if (card.status) tagList.push(statusLabel(card.status));
+  renderTagPills(tagList);
+
+  const sourceCount = data?.sources?.length || 0;
+  const eventsCount = data?.events?.length || 0;
+  el.detailMeta.innerHTML = [
+    metaItem("Домен", domain ? `${domain.code} — ${domain.name}` : "—"),
+    metaItem("Владелец", owner?.name || "—"),
+    metaItem("Статус", statusLabel(card.status)),
+    metaItem("Создана", formatDate(card.created_at)),
+    metaItem("Обновлена", formatDate(card.updated_at)),
+    metaItem("Источники", sourceCount),
+    metaItem("События", eventsCount),
+    metaItem("ID", `#${card.id}`),
+  ].join("");
+
+  renderStatCards([
+    { label: "Источники", value: sourceCount, hint: "привязанные записи" },
+    { label: "События", value: eventsCount, hint: "история изменений" },
+    { label: "Обновлена", value: formatDate(card.updated_at), hint: "дата актуализации" },
+    { label: "Статус", value: statusLabel(card.status), hint: "состояние карточки" },
+    { label: "Владелец", value: owner?.name || "—", hint: "ответственный" },
+    { label: "Домен", value: domain ? domain.code : "—", hint: "пространство знаний" },
+  ]);
+
+  el.detailUpdated.textContent = `Актуализация: ${formatDate(card.updated_at)}`;
+  el.detailContent.textContent = card.content || card.description || "Текст карточки отсутствует";
+  renderHighlights(card.content || card.description || "");
+
+  el.detailSourcesCount.textContent = String(sourceCount);
+  if (sourceCount === 0) {
+    el.detailSources.innerHTML = '<div class="muted">Источники не привязаны</div>';
+  } else {
+    el.detailSources.innerHTML = data.sources
+      .map(
+        (src) => `
+          <div class="detail-card">
+            <h5>${src.name || "Источник"}</h5>
+            <div class="meta-row">
+              <span class="meta-label">URI:</span><span class="meta-value">${src.uri || "—"}</span>
+              <span class="meta-label">Статус:</span><span class="meta-value">${src.is_active ? "активен" : "архив"}</span>
+            </div>
+          </div>`
+      )
+      .join("");
+  }
+
+  el.detailEventsCount.textContent = String(eventsCount);
+  if (eventsCount === 0) {
+    el.detailEvents.innerHTML = '<div class="muted">Пока нет событий</div>';
+  } else {
+    el.detailEvents.innerHTML = `<div class="timeline">${data.events
+      .map(
+        (ev) => `
+          <div class="timeline-item">
+            <div class="meta-label">${formatDate(ev.created_at)}</div>
+            <div class="meta-value">${ev.event_type}</div>
+            <div class="muted">${ev.payload || "Комментарий отсутствует"}</div>
+            <div class="meta-label">Автор: ${ev.user?.name || "—"}</div>
+          </div>`
+      )
+      .join("")}</div>`;
+  }
+}
+
+async function loadCardDetail(cardId) {
+  state.detail.loading = true;
+  state.detail.error = null;
+  state.detail.data = null;
+  renderCardDetail();
+
+  try {
+    const res = await fetch(`${API_BASE}/cards/${cardId}/full`);
+    if (!res.ok) throw new Error("Не удалось загрузить карточку экспертизы");
+    state.detail.data = await res.json();
+  } catch (err) {
+    state.detail.error = err.message || "Ошибка загрузки";
+  } finally {
+    state.detail.loading = false;
+    renderCardDetail();
+  }
+}
+
+function syncCardDetail() {
+  const ids = Array.from(state.assistant.selections);
+  const nextId = ids[0] || null;
+  if (nextId !== state.detail.currentId) {
+    state.detail.currentId = nextId;
+    state.detail.data = null;
+    state.detail.error = null;
+    if (nextId) {
+      loadCardDetail(nextId);
+    } else {
+      renderCardDetail();
+    }
+  }
 }
 
 function addSearchBlock(query, results) {
@@ -451,6 +701,7 @@ function addSearchBlock(query, results) {
   }
   renderAssistantList();
   renderSelectedChips();
+  syncCardDetail();
   syncPrechatPrompt();
 }
 
@@ -635,6 +886,7 @@ function restoreSelection(setId) {
   renderAssistantList();
   renderSelectedChips();
   syncChatAvailability();
+  syncCardDetail();
 }
 
 function buildRegistryQuery() {
@@ -867,6 +1119,7 @@ function resetModalState() {
     el.cardDescriptionInput,
     el.cardTagsInput,
     el.cardContentInput,
+    el.cardQuestionsInput,
   ].forEach((inp) => inp && (inp.value = ""));
   if (el.cardDomainInput) el.cardDomainInput.value = "";
   if (el.cardOwnerInput) el.cardOwnerInput.value = "";
@@ -1094,6 +1347,7 @@ async function init() {
   initEventHandlers();
   renderAssistantList();
   renderSelectedChips();
+  renderCardDetail();
   syncChatAvailability();
 }
 
